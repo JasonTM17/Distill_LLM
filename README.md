@@ -1,84 +1,96 @@
-# Distill GPT-5.5-xhigh → Qwen2.5-3B
+# Distill GPT-5.5-xhigh → Qwen2.5-1.5B
 
-Dùng **knowledge distillation** (chưng cất mô hình) chuyển kiến thức từ GPT-5.5-xhigh qua Qwen2.5-3B-Instruct, chạy local trên RTX 3060 6GB.
+**Knowledge Distillation** từ GPT-5.5-xhigh (9Router API) sang Qwen2.5-1.5B-Instruct, chạy local trên RTX 3060 6GB VRAM.
+
+## Kết quả
+
+| Metric | Before | After |
+|--------|--------|-------|
+| Training Loss | 1.43 | **1.14** ↓20% |
+| Token Accuracy | 66.0% | **72.6%** |
+| Perplexity | — | **4.70** (Excellent) |
 
 ## Kiến trúc
 
 ```
-Phase 1: GEN DATA ──→ Phase 2: TRAIN ──→ Phase 3: EVAL
-  (API 9Router)       (QLoRA local)      (Chat test)
+GPT-5.5-xhigh ──9Router API──▶ teacher_outputs.json ──▶ QLoRA Train ──▶ Merged Model
+         (teacher)              (300 samples, 933K tokens)     (Qwen2.5-1.5B)
 ```
 
-- **Teacher:** `cx/gpt-5.5-xhigh` qua 9Router API
-- **Student:** `Qwen/Qwen2.5-3B-Instruct` (QLoRA 4-bit)
-- **GPU:** NVIDIA RTX 3060 Laptop 6GB VRAM
-- **Framework:** PyTorch + transformers + PEFT + bitsandbytes
+- **Teacher:** `cx/gpt-5.5-xhigh` (9Router, 2048 max tokens)
+- **Student:** `Qwen2.5-1.5B-Instruct` (Alibaba, 4-bit NF4)
+- **GPU:** RTX 3060 Laptop 6GB VRAM
+- **Framework:** PyTorch + Transformers + PEFT (LoRA) + BitsAndBytes
 
-## Cài đặt
+## Quick Start
 
 ```bash
-pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu128
-pip install transformers datasets accelerate peft trl bitsandbytes openai tqdm
-```
-
-## Cách dùng
-
-### 1. Cấu hình
-Sửa API key và paths trong `config.py`.
-
-### 2. Test kết nối
-```bash
+# Test connection
 python test_connection.py
-```
 
-### 3. Thu thập dataset (kéo dài)
-```bash
-python generate_data.py
-```
-Gọi API 530 lần, mỗi lần ~14s, tổng ~2 tiếng.
+# Generate data from teacher (resumable, ~14s/prompt)
+python gen_batch.py
 
-### 4. QLoRA fine-tune
-```bash
+# Format for training
+python format_dataset.py
+
+# Train (3 epochs, ~8 min for 200 samples)
 python train_student.py
-```
-3 epochs, batch 2 + grad accum 4, chạy ~10-15 phút.
 
-### 5. Chat test
-```bash
+# Evaluate
+python evaluate.py
+python test_model.py
+
+# Chat
 python chat.py
 ```
 
 ## Hyperparameters
 
-| Param | Giá trị |
-|-------|---------|
-| LoRA r | 16 |
-| LoRA alpha | 32 |
-| Learning rate | 2e-4 |
-| Batch size | 2 |
-| Max seq length | 1024 |
-| Epochs | 3 |
-| Quantization | NF4, double quant |
+| Param | Value | Note |
+|-------|-------|------|
+| LoRA r | 16 | |
+| LoRA alpha | 32 | |
+| Learning rate | 2e-4 | |
+| Batch | 1 + grad_accum 8 | vừa 6GB VRAM |
+| Max seq len | 512 | |
+| Epochs | 3 | |
+| Quant | NF4, float16 | bfloat16 không hỗ trợ RTX 3060 |
+| Optimizer | AdamW 8-bit | |
 
-## Project structure
+## Project Structure
 
 ```
 distill-gpt55/
-├── config.py              # Central configuration
-├── generate_data.py       # Collect teacher outputs from API
-├── train_student.py       # QLoRA fine-tune
-├── chat.py                # Interactive inference test
+├── config.py              # Central config
+├── gen_batch.py           # API data generation (resumable)
+├── format_dataset.py      # Convert to chat template
+├── train_student.py       # QLoRA training
+├── evaluate.py            # Perplexity evaluation
+├── test_model.py          # Quick inference test
+├── chat.py                # Interactive chat
 ├── test_connection.py     # Verify 9Router API
 ├── data/
-│   ├── prompts.json       # 530 diverse training prompts
+│   ├── prompts.json       # 530 prompts (10 categories)
 │   ├── raw/               # Teacher outputs
-│   └── processed/         # Formatted for training
-├── checkpoints/           # Model checkpoints
-└── README.md
+│   └── processed/         # Training dataset
+├── checkpoints/
+│   ├── adapter/           # LoRA weights
+│   └── merged/            # Final model (1.5GB)
+└── docs/                  # Project documentation
 ```
 
-## Credits
+## Pipeline Stages
 
-- Teacher: GPT-5.5-xhigh via 9Router
-- Student: Qwen2.5-3B-Instruct by Alibaba
-- Quantization: BitsAndBytes + PEFT
+1. **Generate:** API calls GPT-5.5-xhigh, saves after each prompt
+2. **Format:** Convert to Qwen `<|im_start|>` chat template
+3. **Train:** QLoRA 4-bit + LoRA rank 16, 3 epochs
+4. **Merge:** Combine adapter with base model
+5. **Evaluate:** Perplexity + qualitative tests
+
+## Constraints
+
+- **6GB VRAM** → mandatory QLoRA 4-bit
+- **Python 3.14** → requires nightly PyTorch CUDA 12.8 build
+- **Windows symlink limitation** → model cache in `D:/models/`
+- **API:** 9Router localhost:20128 must be running
