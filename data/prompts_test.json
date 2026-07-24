@@ -1,0 +1,7 @@
+[
+  {"id": 1, "category": "coding", "instruction": "Write a Python function to check if a string is a palindrome.", "expected_length": "short"},
+  {"id": 101, "category": "math", "instruction": "Solve the quadratic equation: x^2 - 5x + 6 = 0", "expected_length": "short"},
+  {"id": 301, "category": "vietnamese", "instruction": "Giải thích các mùa trong năm ở Việt Nam và đặc điểm thời tiết từng miền.", "expected_length": "medium"},
+  {"id": 251, "category": "ml_ai", "instruction": "What is the difference between supervised and unsupervised learning?", "expected_length": "medium"},
+  {"id": 451, "category": "philosophy", "instruction": "What is existentialism? Explain the core ideas of Sartre and Camus.", "expected_length": "medium"}
+]
