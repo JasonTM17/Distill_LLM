@@ -5,7 +5,7 @@ from openai import OpenAI
 import config
 
 client = OpenAI(base_url=config.API_BASE_URL, api_key=config.API_KEY)
-TARGET = 100
+TARGET = 200
 
 with open(config.PROMPTS_FILE, 'r', encoding='utf-8') as f:
     prompts = json.load(f)
