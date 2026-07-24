@@ -1,6 +1,7 @@
 """Interactive chat with the distilled model for evaluation."""
 import sys
 import io
+import os
 
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
@@ -15,7 +16,7 @@ def load_model(model_path=config.MERGED_MODEL_DIR):
     print(f"Loading model from {model_path}...")
     model = AutoModelForCausalLM.from_pretrained(
         model_path,
-        torch_dtype=torch.bfloat16,
+        torch_dtype=torch.float16,
         device_map="auto",
         trust_remote_code=True,
     )
