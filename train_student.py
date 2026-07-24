@@ -63,7 +63,6 @@ def main():
         quantization_config=bnb_config,
         device_map="auto",
         trust_remote_code=True,
-        torch_dtype=torch.bfloat16,
     )
     model = prepare_model_for_kbit_training(model)
     model.config.use_cache = False
@@ -100,12 +99,12 @@ def main():
         gradient_accumulation_steps=config.GRADIENT_ACCUMULATION_STEPS,
         num_train_epochs=config.NUM_EPOCHS,
         learning_rate=config.LEARNING_RATE,
-        fp16=config.FP16,
+        fp16=False,
         logging_steps=config.LOGGING_STEPS,
         save_steps=config.SAVE_STEPS,
         save_strategy="steps",
         warmup_ratio=config.WARMUP_RATIO,
-        gradient_checkpointing=True,
+        gradient_checkpointing=False,
         optim="adamw_8bit",
         report_to="none",
         remove_unused_columns=False,
@@ -114,11 +113,9 @@ def main():
     # ── SFT Trainer ──
     trainer = SFTTrainer(
         model=model,
-        tokenizer=tokenizer,
         args=training_args,
+        processing_class=tokenizer,
         train_dataset=train_dataset,
-        max_seq_length=config.MAX_SEQ_LENGTH,
-        dataset_text_field="text",
     )
 
     print("\nStarting training...")
