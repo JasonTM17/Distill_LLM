@@ -6,6 +6,41 @@ import os
 
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
+# Windows paging file workaround: pre-touch the safetensors file to force OS to
+# load it into the file system cache. This avoids the pagefile exhaustion error
+# when transformers' safe_open tries to mmap a 3GB file on systems where C: has
+# insufficient free space for pagefile growth.
+import safetensors
+from safetensors import safe_open as _orig_safe_open
+import os as _os_fs
+
+_touched_files = set()
+
+
+def _touch_file(filepath):
+    """Force OS to read the file into filesystem cache by reading it sequentially."""
+    if filepath in _touched_files or not _os_fs.path.isfile(filepath):
+        return
+    print(f"  [fs-cache] pre-loading {os.path.basename(filepath)} into OS cache...", flush=True)
+    size = _os_fs.path.getsize(filepath)
+    # Read in 64MB chunks to avoid MemoryError
+    chunk = 64 * 1024 * 1024
+    with open(filepath, "rb") as f:
+        while True:
+            data = f.read(chunk)
+            if not data:
+                break
+    _touched_files.add(filepath)
+
+
+def _patched_safe_open(filename, framework, device=None, **kwargs):
+    if isinstance(filename, str):
+        _touch_file(filename)
+    return _orig_safe_open(filename, framework, device=device, **kwargs)
+
+
+safetensors.safe_open = _patched_safe_open
+
 import torch
 from transformers import (
     AutoModelForCausalLM,
@@ -21,21 +56,31 @@ import config
 
 
 def load_and_format_dataset(path):
-    """Load teacher outputs and format as ShareGPT-style for Qwen chat template."""
+    """Load processed dataset (list of {text, category, id}) and return as Dataset."""
     with open(path, "r", encoding="utf-8") as f:
-        raw = json.load(f)
+        data = json.load(f)
+    # Accept either list (new format from format_dataset.py) or dict with 'data' key (legacy)
+    if isinstance(data, dict) and "data" in data:
+        items = data["data"]
+    else:
+        items = data
 
     formatted = []
-    for item in raw["data"]:
-        if not item.get("success") or not item.get("output"):
+    for item in items:
+        if not isinstance(item, dict):
             continue
-        text = (
-            f"<|im_start|>system\nYou are a helpful, knowledgeable assistant. "
-            "Answer thoroughly and clearly.<|im_end|>\n"
-            f"<|im_start|>user\n{item['instruction']}<|im_end|>\n"
-            f"<|im_start|>assistant\n{item['output']}<|im_end|>"
-        )
-        formatted.append({"text": text})
+        if "text" in item and item.get("text"):
+            formatted.append({"text": item["text"]})
+            continue
+        # Legacy fallback: build text from instruction/output
+        if item.get("output"):
+            text = (
+                f"system\nYou are a helpful, knowledgeable assistant. "
+                "Answer thoroughly and clearly.\n"
+                f"user\n{item['instruction']}\n"
+                f"assistant\n{item['output']}"
+            )
+            formatted.append({"text": text})
 
     print(f"Formatted {len(formatted)} valid samples")
     return Dataset.from_list(formatted)
@@ -44,7 +89,7 @@ def load_and_format_dataset(path):
 def main():
     print("=" * 60)
     print(f"Student: {config.STUDENT_MODEL_ID}")
-    print(f"Dataset: {config.TEACHER_OUTPUT_FILE}")
+    print(f"Dataset: {config.PROCESSED_DATASET_FILE}")
     print(f"GPU VRAM: {torch.cuda.get_device_properties(0).total_memory // 1024**3} GB")
     print("=" * 60)
 
@@ -57,12 +102,13 @@ def main():
     )
 
     # ── Load base model ──
-    print("Loading base model (4-bit)...")
+    print("Loading base model (4-bit)...", flush=True)
     model = AutoModelForCausalLM.from_pretrained(
         config.STUDENT_MODEL_ID,
         quantization_config=bnb_config,
         device_map="auto",
         trust_remote_code=True,
+        low_cpu_mem_usage=True,
     )
     model = prepare_model_for_kbit_training(model)
     model.config.use_cache = False
@@ -90,7 +136,7 @@ def main():
 
     # ── Load dataset ──
     print("Loading dataset...")
-    train_dataset = load_and_format_dataset(config.TEACHER_OUTPUT_FILE)
+    train_dataset = load_and_format_dataset(config.PROCESSED_DATASET_FILE)
 
     # ── Training args ──
     training_args = TrainingArguments(
