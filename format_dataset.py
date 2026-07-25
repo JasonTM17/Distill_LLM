@@ -1,35 +1,93 @@
-"""Format teacher outputs into Qwen chat template for SFT training."""
-import json, os
+"""Format teacher outputs into Qwen chat template + stratified train/test split.
+
+Outputs:
+- data/processed/dataset_train.json (90%)
+- data/processed/dataset_test.json  (10%, stratified by category)
+"""
+import json
+import math
+import os
+import random
 import config
 
-with open(config.TEACHER_OUTPUT_FILE, 'r', encoding='utf-8') as f:
-    raw = json.load(f)
 
-formatted = []
-skipped = 0
+def load_valid_samples():
+    with open(config.TEACHER_OUTPUT_FILE, "r", encoding="utf-8") as f:
+        raw = json.load(f)
 
-for item in raw["data"]:
-    if not item.get("success") or not item.get("output"):
-        skipped += 1
-        continue
+    samples = []
+    for item in raw["data"]:
+        if not item.get("success") or not item.get("output", "").strip():
+            continue
+        samples.append({
+            "id": item["id"],
+            "category": item.get("category", "unknown"),
+            "instruction": item["instruction"],
+            "output": item["output"],
+        })
+    return samples
 
+
+def format_chat(item):
+    """Convert to Qwen chat template format."""
     text = (
-        f"<|im_start|>system\n"
-        f"You are a helpful, knowledgeable assistant. Answer thoroughly and clearly.<|im_end|>\n"
-        f"<|im_start|>user\n"
-        f"{item['instruction']}<|im_end|>\n"
-        f"<|im_start|>assistant\n"
-        f"{item['output']}<|im_end|>"
+        "system\n"
+        "You are a helpful, knowledgeable assistant. Answer thoroughly and clearly.\n"
+        "user\n"
+        f"{item['instruction']}\n"
+        "assistant\n"
+        f"{item['output']}"
     )
-    formatted.append({"text": text, "category": item.get("category", "")})
+    return {"text": text, "category": item["category"], "id": item["id"]}
 
-os.makedirs(os.path.dirname(config.PROCESSED_DATASET_FILE), exist_ok=True)
-with open(config.PROCESSED_DATASET_FILE, 'w', encoding='utf-8') as f:
-    json.dump(formatted, f, indent=2, ensure_ascii=False)
 
-print(f"Formatted {len(formatted)} samples (skipped {skipped} failures)")
-print(f"Saved to: {config.PROCESSED_DATASET_FILE}")
+def stratified_split(samples, test_ratio=0.1, seed=42):
+    """Split samples by category. Returns (train, test)."""
+    rng = random.Random(seed)
+    by_cat = {}
+    for s in samples:
+        by_cat.setdefault(s["category"], []).append(s)
 
-# Show sample
-if formatted:
-    print(f"\nSample (first 200 chars):\n{formatted[0]['text'][:200]}...")
+    train, test = [], []
+    for cat, items in by_cat.items():
+        rng.shuffle(items)
+        n_test = max(1, math.floor(len(items) * test_ratio)) if len(items) >= 10 else 0
+        test.extend(items[:n_test])
+        train.extend(items[n_test:])
+    return train, test
+
+
+def main():
+    samples = load_valid_samples()
+    print(f"Loaded {len(samples)} valid samples from {config.TEACHER_OUTPUT_FILE}")
+
+    train, test = stratified_split(samples, test_ratio=config.TEST_SPLIT_RATIO)
+    print(f"Split: train={len(train)}, test={len(test)}")
+
+    train_fmt = [format_chat(s) for s in train]
+    test_fmt = [format_chat(s) for s in test]
+
+    os.makedirs(os.path.dirname(config.PROCESSED_DATASET_FILE), exist_ok=True)
+    with open(config.PROCESSED_DATASET_FILE, "w", encoding="utf-8") as f:
+        json.dump(train_fmt, f, indent=2, ensure_ascii=False)
+    print(f"Saved train: {config.PROCESSED_DATASET_FILE}")
+
+    with open(config.PROCESSED_TEST_FILE, "w", encoding="utf-8") as f:
+        json.dump(test_fmt, f, indent=2, ensure_ascii=False)
+    print(f"Saved test:  {config.PROCESSED_TEST_FILE}")
+
+    # Per-category counts
+    from collections import Counter
+    train_cats = Counter(s["category"] for s in train_fmt)
+    test_cats = Counter(s["category"] for s in test_fmt)
+    print("\nPer-category distribution:")
+    for cat in sorted(set(train_cats) | set(test_cats)):
+        print(f"  {cat:12s}: train={train_cats.get(cat, 0):3d}, test={test_cats.get(cat, 0):2d}")
+
+    # Sample preview
+    if train_fmt:
+        print(f"\nSample train (first 200 chars):\n{train_fmt[0]['text'][:200]}...")
+
+
+if __name__ == "__main__":
+    main()
