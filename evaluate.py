@@ -1,15 +1,16 @@
-"""Evaluate distilled model with perplexity on a test subset."""
+"""Evaluate distilled model with perplexity on held-out test set."""
 import sys, io, json, os
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from torch.utils.data import DataLoader, Dataset
+from collections import defaultdict
 import config
 
 MODEL_PATH = config.MERGED_MODEL_DIR
-DATA_PATH = config.PROCESSED_DATASET_FILE
+DATA_PATH = config.PROCESSED_TEST_FILE
 BATCH_SIZE = 1
-MAX_EVAL_SAMPLES = 20
+MAX_EVAL_SAMPLES = 60
 
 
 class TextDataset(Dataset):
@@ -51,7 +52,8 @@ def compute_perplexity(model, dataloader):
 
 def main():
     print(f"Evaluating model: {MODEL_PATH}", flush=True)
-    print(f"Test samples: {MAX_EVAL_SAMPLES}", flush=True)
+    print(f"Test set:       {DATA_PATH}", flush=True)
+    print(f"Max samples:    {MAX_EVAL_SAMPLES}", flush=True)
 
     model = AutoModelForCausalLM.from_pretrained(
         MODEL_PATH, device_map="auto", trust_remote_code=True, torch_dtype=torch.float16
@@ -67,19 +69,32 @@ def main():
     dataloader = DataLoader(dataset, batch_size=BATCH_SIZE)
 
     loss, ppl = compute_perplexity(model, dataloader)
-    print(f"\nResults on {MAX_EVAL_SAMPLES} samples:", flush=True)
+    print(f"\n=== Overall Results ({len(dataset)} held-out samples) ===", flush=True)
     print(f"  Avg loss:      {loss:.4f}", flush=True)
     print(f"  Perplexity:    {ppl:.2f}", flush=True)
 
     if ppl < 10:
-        grade = "Excellent — low perplexity, well-distilled"
+        grade = "Excellent"
     elif ppl < 20:
-        grade = "Good — reasonable for a 1.5B model"
+        grade = "Good"
     elif ppl < 50:
-        grade = "Fair — may benefit from more data or epochs"
+        grade = "Fair"
     else:
-        grade = "Poor — check dataset quality or hyperparameters"
+        grade = "Poor"
     print(f"  Grade:         {grade}", flush=True)
+
+    # Per-category PPL
+    print(f"\n=== Per-Category Breakdown ===", flush=True)
+    cat_datasets = defaultdict(list)
+    for item in data[:MAX_EVAL_SAMPLES]:
+        cat = item.get("category", "unknown")
+        cat_datasets[cat].append(item)
+    for cat, items in sorted(cat_datasets.items()):
+        ds = TextDataset(items, tokenizer)
+        dl = DataLoader(ds, batch_size=BATCH_SIZE)
+        if len(dl) > 0:
+            cat_loss, cat_ppl = compute_perplexity(model, dl)
+            print(f"  {cat:12s} ({len(items):2d}): loss={cat_loss:.4f}, ppl={cat_ppl:.2f}", flush=True)
 
 
 if __name__ == "__main__":
