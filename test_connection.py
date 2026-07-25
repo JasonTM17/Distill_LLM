@@ -1,13 +1,15 @@
 """Test connection to 9Router - english only for clean output."""
-from openai import OpenAI
 import sys
 import io
 
 # Force UTF-8 output
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
-BASE_URL = "http://127.0.0.1:20128/v1"
-API_KEY = "sk-59be692bbb02885c-kfjrks-07c55700"
+from openai import OpenAI
+import config
+
+BASE_URL = config.API_BASE_URL
+API_KEY = config.API_KEY
 client = OpenAI(base_url=BASE_URL, api_key=API_KEY)
 
 MODELS_TO_TEST = [

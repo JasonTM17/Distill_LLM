@@ -1,4 +1,4 @@
-"""QLoRA fine-tune Qwen2.5-3B on teacher-generated dataset."""
+"""QLoRA fine-tune Qwen2.5-1.5B-Instruct on teacher-generated dataset."""
 import sys
 import io
 import json

@@ -23,7 +23,6 @@ DATA_DIR = os.path.join(PROJECT_DIR, "data")
 RAW_DIR = os.path.join(DATA_DIR, "raw")
 PROCESSED_DIR = os.path.join(DATA_DIR, "processed")
 CHECKPOINT_DIR = os.path.join(PROJECT_DIR, "checkpoints")
-MERGED_DIR = os.path.join(PROJECT_DIR, "merged_model")
 
 # ── 9Router API ─────────────────────────────────────────
 API_BASE_URL = os.environ.get("API_BASE_URL", "http://127.0.0.1:20128/v1")
@@ -42,10 +41,11 @@ STUDENT_LOCAL_DIR = os.path.join(CHECKPOINT_DIR, "student_base")
 PROMPTS_FILE = os.path.join(DATA_DIR, "prompts.json")
 TEACHER_OUTPUT_FILE = os.path.join(RAW_DIR, "teacher_outputs.json")
 PROCESSED_DATASET_FILE = os.path.join(PROCESSED_DIR, "dataset_train.json")
+PROCESSED_TEST_FILE = os.path.join(PROCESSED_DIR, "dataset_test.json")
 TEST_SPLIT_RATIO = 0.1
-REQUEST_DELAY = 1.5          # seconds between API calls
+REQUEST_DELAY = 3.0          # seconds between API calls (rate-limit safe)
 CHECKPOINT_EVERY = 10        # save partial after N prompts
-MAX_RETRIES = 3
+MAX_RETRIES = 5
 
 # ── LoRA / QLoRA Training ───────────────────────────────
 LORA_R = 16
@@ -75,5 +75,5 @@ ADAPTER_DIR = os.path.join(CHECKPOINT_DIR, "adapter")
 MERGED_MODEL_DIR = os.path.join(CHECKPOINT_DIR, "merged")
 
 # Ensure all directories exist on import
-for _d in [DATA_DIR, RAW_DIR, PROCESSED_DIR, CHECKPOINT_DIR, MERGED_DIR]:
+for _d in [DATA_DIR, RAW_DIR, PROCESSED_DIR, CHECKPOINT_DIR, MERGED_MODEL_DIR]:
     os.makedirs(_d, exist_ok=True)
