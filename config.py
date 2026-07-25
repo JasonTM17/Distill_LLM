@@ -1,6 +1,21 @@
-"""Central configuration for GPT-5.5 Distill project."""
+"""Central configuration for GPT-5.5 Distill project. Loads secrets from .env."""
 
 import os
+from pathlib import Path
+
+# ── Load .env file ─────────────────────────────────────
+def _load_dotenv():
+    env_path = Path(__file__).parent / ".env"
+    if env_path.exists():
+        with open(env_path) as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith("#") and "=" in line:
+                    key, val = line.split("=", 1)
+                    if key.strip() not in os.environ:
+                        os.environ[key.strip()] = val.strip()
+
+_load_dotenv()
 
 # ── Paths ──────────────────────────────────────────────
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -11,8 +26,8 @@ CHECKPOINT_DIR = os.path.join(PROJECT_DIR, "checkpoints")
 MERGED_DIR = os.path.join(PROJECT_DIR, "merged_model")
 
 # ── 9Router API ─────────────────────────────────────────
-API_BASE_URL = "http://127.0.0.1:20128/v1"
-API_KEY = "sk-59be692bbb02885c-kfjrks-07c55700"
+API_BASE_URL = os.environ.get("API_BASE_URL", "http://127.0.0.1:20128/v1")
+API_KEY = os.environ.get("API_KEY", "")
 
 # ── Teacher (distill source) ────────────────────────────
 TEACHER_MODEL = "cx/gpt-5.5-xhigh"
