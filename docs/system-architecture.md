@@ -14,10 +14,10 @@ serves it.
 │ teacher_outputs.json (9Router API)      │      │  │ (nginx) │  OpenAI-    │     │  │
 │   ↓ distill.dataset  (screen+split)     │      │  │ React   │  compatible │Fast │  │
 │ train/validation/test (80/10/10)        │      │  └─────────┘             │API  │  │
-│   ↓ distill.train    (QLoRA 4-bit)      │      │       :3000              └──┬──┘  │
+│   ↓ distill.train    (LoRA bf16)        │      │       :3000              └──┬──┘  │
 │ checkpoints/adapter (LoRA)              │      │                             │:8000│
-│   ↓ distill.merge    (fp16 base)        │      │                    llama.cpp CPU  │
-│ checkpoints/merged  (fp16)              │      │                             │     │
+│   ↓ distill.merge    (bf16 base)        │      │                    llama.cpp CPU  │
+│ checkpoints/merged  (bf16)              │      │                             │     │
 │   ↓ distill.evaluate (PPL, ROUGE-L)     │      │              /models volume ▼     │
 │   ↓ distill.export_gguf                 │──────┼──▶ checkpoints/gguf/*.gguf (RO)   │
 └─────────────────────────────────────────┘      └───────────────────────────────────┘
@@ -31,14 +31,26 @@ serves it.
 | `teacher_client.py` | OpenAI-compatible client: retryable/fatal error classification, exponential backoff + jitter, output validation (empty/short/U+FFFD rejected) |
 | `generate_dataset.py` | Resumable generation over 530 prompts; atomic JSON writes; failures retried across runs |
 | `dataset.py` | Quality gate (mojibake, dedup, min-length) → exact Qwen2.5 chat template (`<|im_start|>` tokens) → stratified 80/10/10 splits, seed 42 |
-| `train.py` | QLoRA (NF4 4-bit, LoRA r16 q/k/v/o, batch 1×8, fp16 base) + validation loop, early stopping, best-checkpoint restore |
-| `merge.py` | LoRA merged onto **fp16** base (not the 4-bit dequant — GGUF conversion rejects bitsandbytes-quantized checkpoints) |
+| `train.py` | LoRA r16 on q/k/v/o over the **bf16** base, batch 1×8 + validation loop, early stopping, best-checkpoint restore. Branches on `LOAD_IN_4BIT`: the NF4 4-bit path exists but is unusable in this environment, so v0.5 ran the bf16 path (`fp16=False`, `bf16=True`) |
+| `merge.py` | LoRA merged onto the **bf16** base (not a 4-bit dequant — GGUF conversion rejects bitsandbytes-quantized checkpoints) |
 | `evaluate.py` + `eval_metrics.py` | Held-out PPL, ROUGE-L/token-F1 vs teacher, optional LLM-as-judge (9Router), markdown report |
 | `export_gguf.py` | merged → f16 GGUF → Q4_K_M / Q5_K_M via llama.cpp; smoke test; deletes intermediate |
 | `safetensors_pretouch.py` | Windows pagefile workaround: pre-reads safetensors into OS cache before mmap |
 
-Key hardware constraints: 6GB VRAM → 4-bit QLoRA mandatory, fp16 (no bf16 on
-RTX 3060), batch 1 + grad-accum 8.
+**Precision.** bf16 end-to-end. The RTX 3060 is Ampere, so bf16 compute is fully
+supported, and every weight load goes through `model_loading.load_causal_lm`, which
+hardcodes `dtype=torch.bfloat16` with no override. The shipped artifact agrees:
+`checkpoints/merged/config.json` records `"dtype": "bfloat16"`.
+
+**QLoRA is still the intended design, but it did not run.** 6GB VRAM makes 4-bit
+QLoRA the natural fit, and `train.py` still branches on `LOAD_IN_4BIT` to build a
+bitsandbytes NF4 config. That path is broken in this environment (see the known
+limitations table in [project-roadmap.md](./project-roadmap.md)), so v0.5 trained
+LoRA on the full bf16 model with `LOAD_IN_4BIT=false`. Restoring the 4-bit path is
+tracked on the roadmap; the branch is live code, not a leftover.
+
+Other constraints: batch 1 + grad-accum 8, and gradient checkpointing is required
+for the bf16 path to fit in 6GB.
 
 ## Serving stack (`services/`)
 
