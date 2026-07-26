@@ -1,0 +1,49 @@
+name: ci
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install test deps
+        run: |
+          pip install pytest ruff openai fastapi httpx uvicorn prometheus-client pydantic
+      - name: Lint (ruff)
+        run: ruff check src/ tests/ services/api/
+      - name: Core package tests
+        run: python -m pytest tests/ -q
+      - name: API service tests
+        working-directory: services/api
+        run: python -m pytest tests/ -q
+
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: services/web/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - name: Verify generated client is in sync with the contract
+        run: |
+          pnpm run generate-client
+          git diff --exit-code src/api/schema.d.ts
+      - run: pnpm test
+      - run: pnpm build
