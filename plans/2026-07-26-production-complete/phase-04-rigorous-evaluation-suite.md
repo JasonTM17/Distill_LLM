@@ -20,7 +20,7 @@ heuristic `len>20` check permanently.
    - Generation on test prompts → ROUGE-L / token-F1 vs teacher reference.
    - Optional `--judge` mode: LLM-as-judge via 9Router (JUDGE_MODEL config,
      1-5 scale rubric) — run only if 9Router is up; skip gracefully otherwise.
-   - Emit `plans/reports/evaluation-v05.md` + `checkpoints/evaluation_results.json`
+   - Emit `plans/reports/evaluation-v0.5.md` + `checkpoints/evaluation_results.json`
      with v0.4 numbers (PPL 6.93, from evaluation-v04.md) side by side.
 2. `tests/test_evaluate.py`: metric math on tiny fixtures (ROUGE-L known values),
    report rendering, graceful judge skip.
@@ -29,7 +29,7 @@ heuristic `len>20` check permanently.
 ## Files
 
 - Create: `src/distill/evaluate.py`, `tests/test_evaluate.py`
-- Output: `plans/reports/evaluation-v05.md`, `checkpoints/evaluation_results.json`
+- Output: `plans/reports/evaluation-v0.5.md`, `checkpoints/evaluation_results.json`
 
 ## Validation
 
