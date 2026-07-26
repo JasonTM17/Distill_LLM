@@ -20,9 +20,12 @@ validation, GGUF export, containerized API + chat UI, CI. Plan:
 - [x] Exact Qwen chat template with special tokens (v0.4 trained without them)
 - [x] Serving stack: FastAPI + llama.cpp container (validated end-to-end),
       Vite/React chat UI with generated API client, docker-compose, CI
-- [🔄] Retrain with validation + early stopping (bf16 LoRA — see phase-03
-      incident log for the torch-nightly/safetensors/bnb crashes)
-- [ ] Evaluation report v0.5 vs v0.4; GGUF Q4_K_M + Q5_K_M export
+- [x] Retrain with validation + early stopping (bf16 LoRA — see phase-03
+      incident log for the torch-nightly/safetensors/bnb crashes); merged weights
+      in `checkpoints/merged/`
+- [x] **GGUF Q4_K_M + Q5_K_M exported** (0.92 GB / 1.05 GB) — CPU serving artifacts
+      for the api container
+- [ ] Evaluation report v0.5 vs v0.4 (held-out PPL, ROUGE-L, per-category) — in progress
 - [ ] README/docs sync, final compose smoke test
 
 ### v0.6 — Advanced Distillation
