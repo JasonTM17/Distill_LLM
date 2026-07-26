@@ -10,14 +10,25 @@ containerized OpenAI-compatible API + web chat UI.
 
 | Metric | v0.4 | **v0.5** |
 |--------|------|----------|
-| Held-out perplexity | 6.93 | **5.30** (−23.5%) |
+| Held-out perplexity (cap 2048, 100% of test tokens) | not measured at this cap | **5.23** |
+| Held-out perplexity (cap 512, v0.4 protocol match) | 6.93 | **5.38** (−22.4%) |
 | Validation loss (best) | — (no val split) | **1.409** |
 | Dataset (train/val/test) | 357 / 0 / 38 | **426 / 51 / 51** |
-| Teacher outputs | 396/530 (philosophy+health = 0) | **530/530** |
+| Teacher outputs | 396/530 (philosophy+health = 0) | **530/530 generated, 528 kept** |
 | Chat template | plain-text approximation | exact Qwen `<|im_start|>` template |
 
+Perplexity is reported with its truncation cap because the two are inseparable:
+the test split's median sample is 525 tokens, so a 512 cap scores only 70% of
+held-out tokens, 1024 scores 92%, and 2048 scores 100%. **Only same-cap numbers
+may be compared.** The −22.4% figure is 512-vs-512; v0.4's own truncation rate
+is unmeasurable because its 38-sample split was regenerated for v0.5.
+
+Reproduce the headline with `MAX_SEQ_LENGTH=2048 python -m distill.evaluate
+--label v0.5` as a per-process env override only — `MAX_SEQ_LENGTH` is shared
+with training, and persisting 2048 in `.env` reconfigures training to a length
+that OOMs.
+
 Full report: [`plans/reports/evaluation-v0.5.md`](plans/reports/evaluation-v0.5.md)
-(cross-version PPL comparison is indicative — test splits differ per version).
 
 ## Architecture
 
