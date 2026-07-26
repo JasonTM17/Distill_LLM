@@ -1,9 +1,12 @@
-"""Merge the trained LoRA adapter into a standalone fp16 model.
+"""Merge the trained LoRA adapter into a standalone bf16 model.
 
 Unlike v0.4 (which merged into the 4-bit-quantized base, baking NF4 rounding
-error into the merged weights), this loads the base in full fp16 on CPU and
+error into the merged weights), this loads the base unquantized on CPU and
 merges there — the merged model quality is bounded by the adapter, not the
 quantization. Output feeds evaluation, the GGUF export, and the API service.
+
+Precision is bf16, not fp16: ``load_causal_lm`` pins ``torch.bfloat16`` and
+exposes no override, so the saved ``config.json`` records ``bfloat16``.
 
 Usage::
 
@@ -38,7 +41,7 @@ def main() -> int:
 
     tokenizer = load_tokenizer(config.STUDENT_MODEL_ID)
     tokenizer.save_pretrained(str(config.MERGED_MODEL_DIR))
-    logger.info("done — merged fp16 model ready")
+    logger.info("done — merged bf16 model ready")
     return 0
 
 
