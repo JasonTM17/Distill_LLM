@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "distill-gpt55"
+version = "0.5.0"
+description = "Knowledge distillation of GPT-5.5-xhigh into Qwen2.5-1.5B-Instruct on a 6GB GPU"
+requires-python = ">=3.12"
+dependencies = [
+    "openai>=1.40",
+]
+
+[project.optional-dependencies]
+train = [
+    "torch",
+    "transformers>=4.44",
+    "peft>=0.12",
+    "bitsandbytes>=0.43",
+    "datasets>=2.20",
+    "accelerate>=0.33",
+]
+dev = [
+    "pytest>=8",
+    "ruff>=0.5",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tests"]
