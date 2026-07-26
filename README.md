@@ -65,7 +65,7 @@ python -m distill.generate_dataset    # teacher outputs (resumable, retries fail
 python -m distill.dataset             # quality gate + 80/10/10 stratified splits
 python -m distill.train               # LoRA + validation + early stopping
 python -m distill.merge               # adapter -> merged bf16 model
-python -m distill.evaluate --label v0.5 --baseline-ppl 6.93
+python -m distill.evaluate --label v0.5   # cap decides the number — see Results
 python -m distill.export_gguf         # Q4_K_M + Q5_K_M via llama.cpp
 python -m distill.chat                # interactive smoke test
 ```
