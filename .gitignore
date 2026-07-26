@@ -4,18 +4,28 @@ __pycache__/
 *.egg-info/
 dist/
 build/
+.pytest_cache/
+.ruff_cache/
 
-# Models & checkpoints (quá nặng)
+# Models & checkpoints (too heavy for git)
 checkpoints/
 models/
 *.bin
 *.safetensors
 *.pt
 *.pth
+*.gguf
 
-# Dataset raw
+# Dataset
 data/raw/
 data/processed/
+
+# Logs
+logs/
+
+# Node
+node_modules/
+services/web/dist/
 
 # IDE
 .idea/
@@ -26,7 +36,30 @@ data/processed/
 .DS_Store
 Thumbs.db
 
-# Environment
+# Environment & secrets
 .env
+.env.*
+!.env.example
 venv/
 .venv/
+
+# Assistant tooling & private dirs (never commit)
+.claude/
+.codex/
+.commandcode/
+.claude-private/
+.private/
+AGENTS.md
+CLAUDE.md
+
+# Private notes / drafts (root-level; plans/ is this repo's tracked workflow)
+/PLAN*.md
+/plan*.md
+/NOTES*.md
+/notes*.md
+/TODO*.md
+/todo*.md
+/DRAFT*.md
+/draft*.md
+*.private.md
+*.local.md
