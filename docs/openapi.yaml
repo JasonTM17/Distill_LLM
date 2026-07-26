@@ -1,0 +1,255 @@
+openapi: 3.1.0
+info:
+  title: distill-gpt55 inference API
+  description: OpenAI-compatible chat API for the distilled Qwen2.5-1.5B model.
+  version: 0.5.0
+paths:
+  /healthz:
+    get:
+      summary: Healthz
+      operationId: healthz_healthz_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                additionalProperties:
+                  type: string
+                type: object
+                title: Response Healthz Healthz Get
+  /readyz:
+    get:
+      summary: Readyz
+      operationId: readyz_readyz_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                additionalProperties:
+                  type: string
+                type: object
+                title: Response Readyz Readyz Get
+  /metrics:
+    get:
+      summary: Metrics
+      operationId: metrics_metrics_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+  /v1/chat/completions:
+    post:
+      summary: Chat Completions
+      operationId: chat_completions_v1_chat_completions_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatCompletionRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatCompletionResponse'
+        '429':
+          description: rate limit exceeded
+        '503':
+          description: model not ready
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+components:
+  schemas:
+    ChatCompletionRequest:
+      properties:
+        model:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Model
+        messages:
+          items:
+            $ref: '#/components/schemas/ChatMessage'
+          type: array
+          maxItems: 64
+          minItems: 1
+          title: Messages
+        max_tokens:
+          anyOf:
+          - type: integer
+            maximum: 2048.0
+            minimum: 1.0
+          - type: 'null'
+          title: Max Tokens
+        temperature:
+          anyOf:
+          - type: number
+            maximum: 2.0
+            minimum: 0.0
+          - type: 'null'
+          title: Temperature
+        top_p:
+          anyOf:
+          - type: number
+            maximum: 1.0
+            exclusiveMinimum: 0.0
+          - type: 'null'
+          title: Top P
+        stream:
+          type: boolean
+          title: Stream
+          default: false
+        stop:
+          anyOf:
+          - items:
+              type: string
+            type: array
+            maxItems: 4
+          - type: 'null'
+          title: Stop
+      type: object
+      required:
+      - messages
+      title: ChatCompletionRequest
+    ChatCompletionResponse:
+      properties:
+        id:
+          type: string
+          title: Id
+        object:
+          type: string
+          const: chat.completion
+          title: Object
+          default: chat.completion
+        created:
+          type: integer
+          title: Created
+        model:
+          type: string
+          title: Model
+        choices:
+          items:
+            $ref: '#/components/schemas/Choice'
+          type: array
+          title: Choices
+        usage:
+          $ref: '#/components/schemas/Usage'
+      type: object
+      required:
+      - id
+      - created
+      - model
+      - choices
+      - usage
+      title: ChatCompletionResponse
+    ChatMessage:
+      properties:
+        role:
+          type: string
+          enum:
+          - system
+          - user
+          - assistant
+          title: Role
+        content:
+          type: string
+          maxLength: 32000
+          minLength: 1
+          title: Content
+      type: object
+      required:
+      - role
+      - content
+      title: ChatMessage
+    Choice:
+      properties:
+        index:
+          type: integer
+          title: Index
+          default: 0
+        message:
+          $ref: '#/components/schemas/ChoiceMessage'
+        finish_reason:
+          type: string
+          title: Finish Reason
+          default: stop
+      type: object
+      required:
+      - message
+      title: Choice
+    ChoiceMessage:
+      properties:
+        role:
+          type: string
+          const: assistant
+          title: Role
+          default: assistant
+        content:
+          type: string
+          title: Content
+      type: object
+      required:
+      - content
+      title: ChoiceMessage
+    HTTPValidationError:
+      properties:
+        detail:
+          items:
+            $ref: '#/components/schemas/ValidationError'
+          type: array
+          title: Detail
+      type: object
+      title: HTTPValidationError
+    Usage:
+      properties:
+        prompt_tokens:
+          type: integer
+          title: Prompt Tokens
+          default: 0
+        completion_tokens:
+          type: integer
+          title: Completion Tokens
+          default: 0
+        total_tokens:
+          type: integer
+          title: Total Tokens
+          default: 0
+      type: object
+      title: Usage
+    ValidationError:
+      properties:
+        loc:
+          items:
+            anyOf:
+            - type: string
+            - type: integer
+          type: array
+          title: Location
+        msg:
+          type: string
+          title: Message
+        type:
+          type: string
+          title: Error Type
+        input:
+          title: Input
+        ctx:
+          type: object
+          title: Context
+      type: object
+      required:
+      - loc
+      - msg
+      - type
+      title: ValidationError
