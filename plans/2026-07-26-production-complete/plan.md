@@ -42,7 +42,7 @@ D: drive ~21GB free (clean reproducible artifacts before heavy phases).
 | 7 | [Web chat UI](./phase-07-web-chat-ui.md) | Done |
 | 8 | [Docker compose + CI + tests + docs](./phase-08-docker-compose-ci-tests-docs.md) | Done |
 
-Phase 4 is the only phase still open: `plans/reports/evaluation-v05.md` has not been
+Phase 4 is the only phase still open: `plans/reports/evaluation-v0.5.md` has not been
 produced yet and `checkpoints/evaluation_results.json` still holds v0.4 numbers.
 Phases 6-8 ran ahead of phase 4 because they depend on the GGUF artifacts, not on
 the eval verdict.
