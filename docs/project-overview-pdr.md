@@ -12,7 +12,7 @@ Chưng cất mô hình (knowledge distillation) từ GPT-5.5-xhigh sang Qwen2.5-
 | R2 | Sinh dataset đa dạng (code, toán, ML, tiếng Việt...) | ✅ 530/530, đủ 10/10 categories |
 | R3 | Fine-tune student model trên 6GB VRAM (mục tiêu: QLoRA) | ✅ 1.5B — v0.5 chạy LoRA bf16 với `LOAD_IN_4BIT=false`; nhánh QLoRA 4-bit vẫn còn trong `train.py` nhưng bitsandbytes lỗi trong env này |
 | R4 | Merge adapter và deploy model inference local | ✅ |
-| R5 | Đánh giá chất lượng trên held-out set (không in-sample) | ✅ PPL=6.93, ROUGE=0.13 |
+| R5 | Đánh giá chất lượng trên held-out set (không in-sample) | ✅ PPL 5.23 @cap 2048 (100% token coverage) · 5.38 @cap 512 (khớp protocol v0.4, −22.4%) · ROUGE-L 0.1534 · [báo cáo](../plans/reports/evaluation-v0.5.md) |
 | R6 | Interactive chat để test model | ✅ |
 | R7 | Expand dataset to 530 prompts | ✅ 530/530 |
 | R8 | Train student lớn hơn (3B) khi đủ VRAM | 🔜 |
@@ -25,8 +25,9 @@ Chưng cất mô hình (knowledge distillation) từ GPT-5.5-xhigh sang Qwen2.5-
 |--------|--------|---------|
 | Dataset size | 530 prompts | 530 sinh / 528 qua quality gate (10/10 categories) |
 | Training loss (3 epoch) | < 1.5 | 1.3785 |
-| Token accuracy | > 65% | 65.3% |
-| **Perplexity (held-out)** | < 10 | **6.93** (Excellent) |
+| Validation loss (best) | — | 1.4092 (checkpoint-125) |
+| Token accuracy | > 65% | không đo ở v0.5 (v0.4: 65.3%) — v0.5 đo ROUGE-L / token-F1, là metric khác |
+| **Perplexity (held-out)** | < 10 | **5.23** @cap 2048 (100% coverage) · 5.38 @cap 512 |
 | VRAM (train) | < 6GB | ~5GB |
 | VRAM (inference) | < 3.5GB | ~3.5GB |
 | Held-out test samples | ≥ 30 | 51 (stratified, split 426/51/51) |

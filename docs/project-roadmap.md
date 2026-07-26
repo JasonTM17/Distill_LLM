@@ -25,8 +25,12 @@ validation, GGUF export, containerized API + chat UI, CI. Plan:
       in `checkpoints/merged/`
 - [x] **GGUF Q4_K_M + Q5_K_M exported** (0.92 GB / 1.05 GB) — CPU serving artifacts
       for the api container
-- [ ] Evaluation report v0.5 vs v0.4 (held-out PPL, ROUGE-L, per-category) — in progress
-- [ ] README/docs sync, final compose smoke test
+- [x] **Evaluation report v0.5 vs v0.4** — held-out PPL **5.23** at cap 2048 (100%
+      token coverage), **5.38** at cap 512 vs v0.4's 6.93 on the matched protocol
+      (−22.4%), ROUGE-L 0.1534, per-category breakdown at all three caps:
+      [`plans/reports/evaluation-v0.5.md`](../plans/reports/evaluation-v0.5.md)
+- [x] README/docs sync
+- [ ] Final compose smoke test — blocked, Docker is not up
 
 ### v0.6 — Advanced Distillation
 - [ ] Teacher ensemble: add `cx/gpt-5.6-terra` as comparative teacher
@@ -47,7 +51,7 @@ validation, GGUF export, containerized API + chat UI, CI. Plan:
 
 | Limitation | Impact | Mitigation |
 |-----------|--------|------------|
-| RTX 3060 6GB VRAM | seq 512 cap for bf16 LoRA (152K-vocab logits OOM at 1024) | gradient checkpointing; QLoRA when bnb fixed |
+| RTX 3060 6GB VRAM | **training-scoped**: seq 512 cap for bf16 LoRA (152K-vocab logits OOM at 1024). Not a box-wide limit — forward-only evaluation runs fine at cap 2048 | gradient checkpointing; QLoRA when bnb fixed |
 | torch nightly + safetensors 0.8 | direct-to-GPU load and fp16-at-load crash (AV) | CPU-first loads, bf16 end-to-end (see phase-03) |
 | bnb on-the-fly 4-bit broken in this env | QLoRA unavailable | LoRA on full bf16 behind `LOAD_IN_4BIT=false` |
 | API-only teacher (no logits) | SFT, not true KL distillation | accepted trade-off |
