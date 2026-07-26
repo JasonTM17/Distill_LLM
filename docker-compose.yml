@@ -1,0 +1,35 @@
+services:
+  api:
+    build:
+      context: ./services/api
+    image: nguyenson1710/distill-gpt55-api:latest
+    environment:
+      MODEL_PATH: /models/distill-gpt55-v0.5-Q4_K_M.gguf
+      CORS_ALLOW_ORIGINS: http://localhost:3000
+    volumes:
+      - ./checkpoints/gguf:/models:ro
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8000/readyz"]
+      interval: 15s
+      timeout: 5s
+      start_period: 90s
+      retries: 5
+    networks: [distill]
+
+  web:
+    build:
+      context: ./services/web
+      args:
+        VITE_API_BASE_URL: http://localhost:8000
+    image: nguyenson1710/distill-gpt55-web:latest
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+    networks: [distill]
+
+networks:
+  distill:
