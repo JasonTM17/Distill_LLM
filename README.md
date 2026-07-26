@@ -1,111 +1,102 @@
-# Distill GPT-5.5-xhigh → Qwen2.5-1.5B
+# distill-gpt55 — Distill GPT-5.5-xhigh → Qwen2.5-1.5B
 
-**Knowledge Distillation** từ GPT-5.5-xhigh (9Router API) sang Qwen2.5-1.5B-Instruct, chạy local trên RTX 3060 6GB VRAM.
+**Knowledge distillation** from GPT-5.5-xhigh (via 9Router API) into
+Qwen2.5-1.5B-Instruct, trained locally on an RTX 3060 6GB — then served as a
+containerized OpenAI-compatible API + web chat UI.
 
-## Kết quả
+## Results
 
-### v0.4 (current — held-out evaluation)
+### v0.5 (current) — full 530-prompt dataset
 
-| Metric | v0.3 (in-sample, 200) | **v0.4 (held-out, 395)** | Direction |
-|--------|----------------------|--------------------------|-----------|
-| Perplexity (held-out) | 4.70 (in-sample, misleading) | **6.93** (real test) | Honest eval |
-| Training Loss (final) | 1.14 | 1.44 | +0.30 |
-| Token Accuracy | 72.6% | 65.3% | -7.3pp |
-| Train samples | 200 | **357** | +78% |
-| Test samples | 0 (none) | **38 stratified** | Real eval |
+| Metric | v0.4 | **v0.5** |
+|--------|------|----------|
+| Held-out perplexity | 6.93 | **5.30** (−23.5%) |
+| Validation loss (best) | — (no val split) | **1.409** |
+| Dataset (train/val/test) | 357 / 0 / 38 | **426 / 51 / 51** |
+| Teacher outputs | 396/530 (philosophy+health = 0) | **530/530** |
+| Chat template | plain-text approximation | exact Qwen `<|im_start|>` template |
 
-**Best categories (held-out PPL):** math 3.61, coding 4.66, science 5.67
-**Weakest:** creative 14.39 (needs more data)
+Full report: [`plans/reports/evaluation-v0.5.md`](plans/reports/evaluation-v0.5.md)
+(cross-version PPL comparison is indicative — test splits differ per version).
 
-See [evaluation-v04.md](plans/reports/evaluation-v04.md) for full report.
-
-## Kiến trúc
+## Architecture
 
 ```
-GPT-5.5-xhigh ──9Router API──▶ teacher_outputs.json ──▶ QLoRA Train ──▶ Merged Model
-         (teacher)              (300 samples, 933K tokens)     (Qwen2.5-1.5B)
+OFFLINE (RTX 3060 6GB)                        ONLINE (docker compose)
+prompts.json (530)                            ┌─────────┐      ┌─────────┐
+  → distill.generate_dataset (9Router)        │   web   │─────▶│   api   │
+  → distill.dataset (screen + split)          │  React  │ SSE  │ FastAPI │
+  → distill.train (bf16 LoRA + validation)    │  nginx  │      │llama.cpp│
+  → distill.merge → distill.evaluate          └─────────┘      └────┬────┘
+  → distill.export_gguf ──────────────────────── GGUF volume ───────┘
 ```
 
-- **Teacher:** `cx/gpt-5.5-xhigh` (9Router, 2048 max tokens)
-- **Student:** `Qwen2.5-1.5B-Instruct` (Alibaba, 4-bit NF4)
-- **GPU:** RTX 3060 Laptop 6GB VRAM
-- **Framework:** PyTorch + Transformers + PEFT (LoRA) + BitsAndBytes
+Details: [`docs/system-architecture.md`](docs/system-architecture.md)
 
-## Quick Start
+## Quick start — serving
 
 ```bash
-# Test connection
-python test_connection.py
-
-# Generate data from teacher (resumable, ~14s/prompt)
-python gen_batch.py
-
-# Format for training (creates train/test split)
-python format_dataset.py
-
-# Train (3 epochs, ~22 min for 357 samples on RTX 3060 6GB)
-python train_student.py
-
-# Evaluate
-python evaluate.py            # Perplexity on held-out test set
-python evaluate_extended.py   # ROUGE-L vs teacher on test set
-python test_model.py          # Quick inference smoke test
-
-# Chat
-python chat.py
+docker compose up --build
+# web: http://localhost:3000   api: http://localhost:8000 (OpenAI-compatible)
 ```
 
-**Note:** If `train_student.py` fails with "paging file is too small" on Windows,
-the script auto-pre-touches safetensors to load into OS cache. Ensure C: drive
-has at least 2 GB free (pagefile growth target).
+Needs `checkpoints/gguf/distill-gpt55-v0.5-Q4_K_M.gguf` (see pipeline below or
+[`docs/deployment-guide.md`](docs/deployment-guide.md)).
 
-## Hyperparameters
+## Quick start — training pipeline
+
+```bash
+pip install -e .[train,dev]           # or: set PYTHONPATH=src
+set PYTHONPATH=src
+
+python -m distill.download_student    # base model -> D:/models/qwen15-1.5b
+python -m distill.generate_dataset    # teacher outputs (resumable, retries failures)
+python -m distill.dataset             # quality gate + 80/10/10 stratified splits
+python -m distill.train               # LoRA + validation + early stopping
+python -m distill.merge               # adapter -> merged bf16 model
+python -m distill.evaluate --label v0.5 --baseline-ppl 6.93
+python -m distill.export_gguf         # Q4_K_M + Q5_K_M via llama.cpp
+python -m distill.chat                # interactive smoke test
+```
+
+Environment knobs live in [`.env.example`](.env.example). On this machine
+training runs with `LOAD_IN_4BIT=false GRADIENT_CHECKPOINTING=true MAX_SEQ_LENGTH=512`
+(see `docs/code-standards.md` for the hard-won torch-nightly constraints).
+
+## Hyperparameters (v0.5)
 
 | Param | Value | Note |
 |-------|-------|------|
-| LoRA r | 16 | |
-| LoRA alpha | 32 | |
-| Learning rate | 2e-4 | |
-| Batch | 1 + grad_accum 8 | vừa 6GB VRAM |
-| Max seq len | 512 | |
-| Epochs | 3 | |
-| Quant | NF4, float16 | bfloat16 không hỗ trợ RTX 3060 |
-| Optimizer | AdamW 8-bit | |
+| Method | LoRA r=16 α=32 on q/k/v/o | bf16 base (bnb 4-bit broken in this env) |
+| Batch | 1 × grad-accum 8 | 6GB VRAM |
+| LR / schedule | 2e-4 cosine, 3 epochs | early stopping on val loss |
+| Max seq len | 512 | 152K-vocab logits OOM at 1024 |
+| Eval | every 25 steps on 51-sample val split | best checkpoint restored |
 
-## Project Structure
+## Tests
 
-```
-distill-gpt55/
-├── config.py              # Central config
-├── gen_batch.py           # API data generation (resumable)
-├── format_dataset.py      # Convert to chat template
-├── train_student.py       # QLoRA training
-├── evaluate.py            # Perplexity evaluation
-├── test_model.py          # Quick inference test
-├── chat.py                # Interactive chat
-├── test_connection.py     # Verify 9Router API
-├── data/
-│   ├── prompts.json       # 530 prompts (10 categories)
-│   ├── raw/               # Teacher outputs
-│   └── processed/         # Train + test splits (stratified 90/10)
-├── checkpoints/
-│   ├── adapter/           # LoRA weights (current run)
-│   ├── v0.3_adapter/      # Archived v0.3 weights
-│   └── merged/            # Final model (1.6GB)
-└── docs/                  # Project documentation
+```bash
+python -m pytest tests/ -q                    # pipeline package (49 tests)
+cd services/api && python -m pytest tests/ -q # API (fake runtime, no model)
+cd services/web && pnpm test && pnpm build    # UI + type check
+ruff check src/ tests/ services/api/
 ```
 
-## Pipeline Stages
+## Repo layout
 
-1. **Generate:** API calls GPT-5.5-xhigh, saves after each prompt (resumable)
-2. **Format:** Convert to Qwen chat template + stratified train/test split
-3. **Train:** QLoRA 4-bit + LoRA rank 16, 3 epochs (357 samples)
-4. **Merge:** Combine adapter with base model
-5. **Evaluate:** Perplexity on held-out (38 samples) + ROUGE-L vs teacher
+```
+src/distill/       training pipeline package
+services/api/      FastAPI + llama.cpp inference service (own README)
+services/web/      React chat UI (own README)
+data/              prompts + raw teacher outputs + processed splits
+checkpoints/       adapter / merged / gguf artifacts (gitignored)
+docs/              architecture, standards, roadmap, deployment, openapi.yaml
+plans/             ClaudeKit plans + evaluation reports
+```
 
 ## Constraints
 
-- **6GB VRAM** → mandatory QLoRA 4-bit
-- **Python 3.14** → requires nightly PyTorch CUDA 12.8 build
-- **Windows symlink limitation** → model cache in `D:/models/`
-- **API:** 9Router localhost:20128 must be running
+- **6GB VRAM** → LoRA + gradient checkpointing (QLoRA when bnb works again)
+- **Python 3.14** → torch nightly cu128; several loader bugs worked around
+  (bf16-only, CPU-first loads — see `docs/code-standards.md`)
+- **9Router** at `localhost:20128` needed only for generation/judge, never serving
