@@ -23,13 +23,13 @@ Chưng cất mô hình (knowledge distillation) từ GPT-5.5-xhigh sang Qwen2.5-
 
 | Metric | Target | Current |
 |--------|--------|---------|
-| Dataset size | 530 prompts | 395 (8/10 categories) |
-| Training loss (3 epoch) | < 1.5 | 1.44 |
+| Dataset size | 530 prompts | 530 sinh / 528 qua quality gate (10/10 categories) |
+| Training loss (3 epoch) | < 1.5 | 1.3785 |
 | Token accuracy | > 65% | 65.3% |
 | **Perplexity (held-out)** | < 10 | **6.93** (Excellent) |
 | VRAM (train) | < 6GB | ~5GB |
 | VRAM (inference) | < 3.5GB | ~3.5GB |
-| Held-out test samples | ≥ 30 | 38 (stratified) |
+| Held-out test samples | ≥ 30 | 51 (stratified, split 426/51/51) |
 | Response quality | Clean code, accurate | ✅ |
 
 ## Tech Stack
@@ -56,5 +56,5 @@ Chưng cất mô hình (knowledge distillation) từ GPT-5.5-xhigh sang Qwen2.5-
 |------|-----------|--------|------------|
 | Teacher API rate limit | Medium | Low | Delay 1.5s, retry 3 lần |
 | OOM khi train | High | High | Giảm batch → 1, seq → 512, dùng 1.5B |
-| bitsandbytes unstable | Medium | Medium | Float16, test kỹ |
+| bitsandbytes 4-bit lỗi trong env này | ⚠️ Đã xảy ra | Medium | v0.5 train LoRA trên base bf16 + gradient checkpointing. Đường thoát: quay lại QLoRA khi bnb chạy được (nhánh `LOAD_IN_4BIT` vẫn còn) |
 | Ổ D full | Low | Medium | Monitoring, xóa cache |
