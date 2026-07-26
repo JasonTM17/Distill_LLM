@@ -1,84 +1,85 @@
 # System Architecture
 
-## Pipeline Overview
+## Overview
+
+Two planes: an **offline training pipeline** (Python package `src/distill`, GPU) that
+produces a GGUF model artifact, and an **online serving stack** (two containers) that
+serves it.
 
 ```
-  ┌──────────────┐     ┌───────────────┐     ┌───────────────┐     ┌─────────────┐
-  │  prompts.json │────▶│ 9Router API   │────▶│   QLoRA Train │────▶│   Merged    │
-  │    (530)      │     │ cx/gpt-5.5    │     │ Qwen2.5-1.5B │     │   Model     │
-  └──────────────┘     └───────┬───────┘     └───────┬───────┘     └──────┬──────┘
-                               │                     │                    │
-                               ▼                     ▼                    ▼
-                       raw/teacher_outputs   checkpoints/adapter    chat.py / CLI
-                            (JSON)            (LoRA weights)       interactive test
+          OFFLINE (RTX 3060 6GB)                          ONLINE (docker compose)
+┌─────────────────────────────────────────┐      ┌───────────────────────────────────┐
+│ prompts.json (530)                      │      │  ┌─────────┐   REST/SSE  ┌─────┐  │
+│   ↓ distill.generate_dataset            │      │  │   web   │────────────▶│ api │  │
+│ teacher_outputs.json (9Router API)      │      │  │ (nginx) │  OpenAI-    │     │  │
+│   ↓ distill.dataset  (screen+split)     │      │  │ React   │  compatible │Fast │  │
+│ train/validation/test (80/10/10)        │      │  └─────────┘             │API  │  │
+│   ↓ distill.train    (QLoRA 4-bit)      │      │       :3000              └──┬──┘  │
+│ checkpoints/adapter (LoRA)              │      │                             │:8000│
+│   ↓ distill.merge    (fp16 base)        │      │                    llama.cpp CPU  │
+│ checkpoints/merged  (fp16)              │      │                             │     │
+│   ↓ distill.evaluate (PPL, ROUGE-L)     │      │              /models volume ▼     │
+│   ↓ distill.export_gguf                 │──────┼──▶ checkpoints/gguf/*.gguf (RO)   │
+└─────────────────────────────────────────┘      └───────────────────────────────────┘
 ```
 
-## Component Detail
+## Training pipeline (`src/distill`)
 
-### 1. Data Generation (`gen_batch.py`)
-- **Input:** `data/prompts.json` — 530 instructions phân bố đều qua 10 categories
-- **API Call:** OpenAI-compatible POST đến `127.0.0.1:20128/v1`
-- **Model:** `cx/gpt-5.5-xhigh`, max_tokens=2048, temperature=0.7
-- **Output:** `data/raw/teacher_outputs.json` — list [{instruction, output, tokens, success}]
-- **Resilience:** Save sau mỗi prompt, retry 3 lần, delay 1.5s
+| Module | Responsibility |
+|---|---|
+| `config.py` | All tunables; env-overridable; loads `.env` (secrets never hardcoded) |
+| `teacher_client.py` | OpenAI-compatible client: retryable/fatal error classification, exponential backoff + jitter, output validation (empty/short/U+FFFD rejected) |
+| `generate_dataset.py` | Resumable generation over 530 prompts; atomic JSON writes; failures retried across runs |
+| `dataset.py` | Quality gate (mojibake, dedup, min-length) → exact Qwen2.5 chat template (`<|im_start|>` tokens) → stratified 80/10/10 splits, seed 42 |
+| `train.py` | QLoRA (NF4 4-bit, LoRA r16 q/k/v/o, batch 1×8, fp16 base) + validation loop, early stopping, best-checkpoint restore |
+| `merge.py` | LoRA merged onto **fp16** base (not the 4-bit dequant — GGUF conversion rejects bitsandbytes-quantized checkpoints) |
+| `evaluate.py` + `eval_metrics.py` | Held-out PPL, ROUGE-L/token-F1 vs teacher, optional LLM-as-judge (9Router), markdown report |
+| `export_gguf.py` | merged → f16 GGUF → Q4_K_M / Q5_K_M via llama.cpp; smoke test; deletes intermediate |
+| `safetensors_pretouch.py` | Windows pagefile workaround: pre-reads safetensors into OS cache before mmap |
 
-### 2. Dataset Formatting (`format_dataset.py`)
-- **Input:** `data/raw/teacher_outputs.json`
-- **Transform:** Convert to Qwen `system/user/assistant` chat template + stratified 90/10 split
-- **Output:** `data/processed/dataset_train.json` (357 samples) + `dataset_test.json` (38 samples)
+Key hardware constraints: 6GB VRAM → 4-bit QLoRA mandatory, fp16 (no bf16 on
+RTX 3060), batch 1 + grad-accum 8.
 
-### 3. QLoRA Training (`train_student.py`)
-- **Base Model:** Qwen2.5-1.5B-Instruct (local `D:/models/qwen15-1.5b`)
-- **Quantization:** BitsAndBytes 4-bit NF4, double quantization, float16 compute
-- **LoRA:** rank=16, alpha=32, target=q/k/v/o projections, dropout=0.05
-- **Training:** SFTTrainer (TRL), 3 epochs, batch=1, grad_accum=8, lr=2e-4
-- **Workaround:** Pre-touch safetensors to OS cache (Windows pagefile error 1455)
-- **Output:** `checkpoints/adapter/` (LoRA weights) → merge to `checkpoints/merged/`
+## Serving stack (`services/`)
 
-### 4. Evaluation (`evaluate.py`, `evaluate_extended.py`)
-- **Perplexity:** Compute on held-out test set (38 samples) → PPL=6.93 (Excellent)
-- **ROUGE-L vs teacher:** LCS-based similarity on test set → avg=0.1337
-- **Per-category PPL:** math 3.61, coding 4.66, science 5.67, creative 14.39 (weakest)
+### api — FastAPI + llama.cpp (`services/api`)
+- `POST /v1/chat/completions` (OpenAI-compatible, SSE streaming + non-streaming)
+- `/healthz`, `/readyz` (503 until GGUF loaded), `/metrics` (Prometheus)
+- llama-cpp-python CPU runtime, single-flight lock (llama ctx not thread-safe),
+  background model load, per-IP sliding-window rate limit
+- Image: python:3.12-slim multi-stage, non-root 65532, HEALTHCHECK, ~sub-500MB;
+  GGUF mounted read-only at `/models` — never baked into the image
 
-### 5. Inference (`chat.py`, `test_model.py`)
-- **Load:** 4-bit merged model → ~3.5GB VRAM
-- **Generate:** temperature=0.7, top_p=0.9, max_new_tokens=200-512
+### web — React chat UI (`services/web`)
+- Vite + React + TS; API client **generated** from `docs/openapi.yaml`
+  (`pnpm run generate-client`) — no hand-written contract types
+- Streaming token rendering (buffered SSE parser), stop/abort, health polling,
+  sanitized markdown (DOMPurify)
+- Image: node builder → nginx-unprivileged alpine, non-root, HEALTHCHECK
 
-## Data Flow
+### Contract
+`docs/openapi.yaml` is canonical, exported from the FastAPI app; CI fails if the
+committed generated client drifts from it.
 
-```
-prompts.json (530)
-  ↓ gen_batch.py ── 9Router API ── teacher_outputs.json
-  ↓ format_dataset.py
-dataset_train.json
-  ↓ train_student.py ── Qwen2.5-1.5B + QLoRA
-checkpoints/merged/
-  ↓ chat.py / test_model.py
-User interaction
-```
-
-## Directory Layout
+## Directory layout
 
 ```
 distill-gpt55/
-├── config.py              ← Trung tâm cấu hình
-├── gen_batch.py           ← Sinh dataset (resumable)
-├── format_dataset.py      ← Convert sang chat template
-├── train_student.py       ← QLoRA training
-├── evaluate.py            ← Đánh giá perplexity
-├── test_model.py           ← Test nhanh inference
-├── chat.py                ← Interactive chat
-├── test_connection.py     ← Verify 9Router
-├── download_student.py    ← Tải model từ HF
-├── data/
-│   ├── prompts.json       ← 530 prompt mẫu
-│   ├── raw/               ← Teacher outputs
-│   └── processed/         ← Dataset formatted
-├── checkpoints/
-│   ├── adapter/           ← LoRA weights
-│   └── merged/            ← Merged model ready
-├── docs/                  ← Project documentation
-└── D:/models/
-    ├── qwen15-1.5b/       ← Base model (3GB)
-    └── qwen25-3b/         ← Base model (5.7GB, chưa dùng)
+├── src/distill/           ← training pipeline package (tested in tests/)
+├── services/
+│   ├── api/               ← inference service (own Dockerfile, tests, README)
+│   └── web/               ← chat UI (own Dockerfile, tests, README)
+├── data/                  ← prompts + raw teacher outputs + processed splits
+├── checkpoints/           ← adapter / merged / gguf artifacts (gitignored)
+├── docs/                  ← this file, openapi.yaml, PDR, roadmap, standards
+├── plans/                 ← ClaudeKit plans + evaluation reports
+├── docker-compose.yml     ← boots api + web with GGUF volume
+└── D:/models/qwen15-1.5b  ← base model cache (outside repo)
 ```
+
+## External dependencies
+
+- **9Router** (`localhost:20128`) — teacher + judge API; needed only for data
+  generation and judge evaluation, never at serving time.
+- **llama.cpp** (`D:/tools/llama-cpp-b10107` bin + `D:/tools/llama.cpp-src`) —
+  GGUF conversion/quantization tooling; paths via `LLAMACPP_BIN`/`LLAMACPP_SRC`.
