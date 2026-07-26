@@ -4,11 +4,20 @@
 
 ## Kết quả
 
-| Metric | Before | After |
-|--------|--------|-------|
-| Training Loss | 1.43 | **1.14** ↓20% |
-| Token Accuracy | 66.0% | **72.6%** |
-| Perplexity | — | **4.70** (Excellent) |
+### v0.4 (current — held-out evaluation)
+
+| Metric | v0.3 (in-sample, 200) | **v0.4 (held-out, 395)** | Direction |
+|--------|----------------------|--------------------------|-----------|
+| Perplexity (held-out) | 4.70 (in-sample, misleading) | **6.93** (real test) | Honest eval |
+| Training Loss (final) | 1.14 | 1.44 | +0.30 |
+| Token Accuracy | 72.6% | 65.3% | -7.3pp |
+| Train samples | 200 | **357** | +78% |
+| Test samples | 0 (none) | **38 stratified** | Real eval |
+
+**Best categories (held-out PPL):** math 3.61, coding 4.66, science 5.67
+**Weakest:** creative 14.39 (needs more data)
+
+See [evaluation-v04.md](plans/reports/evaluation-v04.md) for full report.
 
 ## Kiến trúc
 
@@ -31,19 +40,24 @@ python test_connection.py
 # Generate data from teacher (resumable, ~14s/prompt)
 python gen_batch.py
 
-# Format for training
+# Format for training (creates train/test split)
 python format_dataset.py
 
-# Train (3 epochs, ~8 min for 200 samples)
+# Train (3 epochs, ~22 min for 357 samples on RTX 3060 6GB)
 python train_student.py
 
 # Evaluate
-python evaluate.py
-python test_model.py
+python evaluate.py            # Perplexity on held-out test set
+python evaluate_extended.py   # ROUGE-L vs teacher on test set
+python test_model.py          # Quick inference smoke test
 
 # Chat
 python chat.py
 ```
+
+**Note:** If `train_student.py` fails with "paging file is too small" on Windows,
+the script auto-pre-touches safetensors to load into OS cache. Ensure C: drive
+has at least 2 GB free (pagefile growth target).
 
 ## Hyperparameters
 
@@ -73,20 +87,21 @@ distill-gpt55/
 ├── data/
 │   ├── prompts.json       # 530 prompts (10 categories)
 │   ├── raw/               # Teacher outputs
-│   └── processed/         # Training dataset
+│   └── processed/         # Train + test splits (stratified 90/10)
 ├── checkpoints/
-│   ├── adapter/           # LoRA weights
-│   └── merged/            # Final model (1.5GB)
+│   ├── adapter/           # LoRA weights (current run)
+│   ├── v0.3_adapter/      # Archived v0.3 weights
+│   └── merged/            # Final model (1.6GB)
 └── docs/                  # Project documentation
 ```
 
 ## Pipeline Stages
 
-1. **Generate:** API calls GPT-5.5-xhigh, saves after each prompt
-2. **Format:** Convert to Qwen `<|im_start|>` chat template
-3. **Train:** QLoRA 4-bit + LoRA rank 16, 3 epochs
+1. **Generate:** API calls GPT-5.5-xhigh, saves after each prompt (resumable)
+2. **Format:** Convert to Qwen chat template + stratified train/test split
+3. **Train:** QLoRA 4-bit + LoRA rank 16, 3 epochs (357 samples)
 4. **Merge:** Combine adapter with base model
-5. **Evaluate:** Perplexity + qualitative tests
+5. **Evaluate:** Perplexity on held-out (38 samples) + ROUGE-L vs teacher
 
 ## Constraints
 

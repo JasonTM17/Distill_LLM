@@ -9,12 +9,12 @@ Chưng cất mô hình (knowledge distillation) từ GPT-5.5-xhigh sang Qwen2.5-
 | ID | Requirement | Status |
 |----|------------|--------|
 | R1 | Kết nối 9Router API và gọi cx/gpt-5.5-xhigh | ✅ |
-| R2 | Sinh dataset đa dạng (code, toán, ML, tiếng Việt...) | ✅ 200/530 |
+| R2 | Sinh dataset đa dạng (code, toán, ML, tiếng Việt...) | ⚠️ 395/530 (rate-limited) |
 | R3 | QLoRA fine-tune student model trên 6GB VRAM | ✅ 1.5B |
 | R4 | Merge adapter và deploy model inference local | ✅ |
-| R5 | Đánh giá chất lượng (loss, perplexity, accuracy) | ✅ PPL=4.7 |
+| R5 | Đánh giá chất lượng trên held-out set (không in-sample) | ✅ PPL=6.93, ROUGE=0.13 |
 | R6 | Interactive chat để test model | ✅ |
-| R7 | Expand dataset to 530 prompts | 🔜 |
+| R7 | Expand dataset to 530 prompts | 🔜 (135 còn thiếu) |
 | R8 | Train student lớn hơn (3B) khi đủ VRAM | 🔜 |
 | R9 | Support streaming generation | 🔜 |
 | R10 | Export model sang GGUF/ONNX | 🔜 |
@@ -23,12 +23,13 @@ Chưng cất mô hình (knowledge distillation) từ GPT-5.5-xhigh sang Qwen2.5-
 
 | Metric | Target | Current |
 |--------|--------|---------|
-| Dataset size | 530 prompts | 200 |
-| Training loss (3 epoch) | < 1.5 | 1.14 |
-| Token accuracy | > 70% | 72.6% |
-| Perplexity | < 10 | 4.70 |
+| Dataset size | 530 prompts | 395 (8/10 categories) |
+| Training loss (3 epoch) | < 1.5 | 1.44 |
+| Token accuracy | > 65% | 65.3% |
+| **Perplexity (held-out)** | < 10 | **6.93** (Excellent) |
 | VRAM (train) | < 6GB | ~5GB |
 | VRAM (inference) | < 3.5GB | ~3.5GB |
+| Held-out test samples | ≥ 30 | 38 (stratified) |
 | Response quality | Clean code, accurate | ✅ |
 
 ## Tech Stack

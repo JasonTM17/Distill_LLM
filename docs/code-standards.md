@@ -36,12 +36,16 @@
 - **SFTTrainer** from TRL with `processing_class=` (new API)
 
 ## Dataset
-- **200+ samples** minimum for meaningful distillation
+- **300+ samples** minimum for meaningful distillation
 - **10 categories:** coding, reasoning, math, creative, science, ml_ai, vietnamese, business, health, philosophy
-- **Qwen chat template:** `<|im_start|>system/user/assistant<|im_end|>`
+- **Qwen chat template:** `system/user/assistant`
 - **Save after every generation** to prevent data loss
+- **Stratified 90/10 train/test split** for honest evaluation (PPL on held-out, not in-sample)
 
 ## Evaluation
-- **Perplexity** on held-out set as primary metric
+- **Perplexity on held-out test set** as primary metric (NOT in-sample)
+- **ROUGE-L vs teacher** for generation quality
+- **Per-category PPL** to identify weak domains
+- **Loss tracking per step** for convergence monitoring
+- **Temperature=0.7 generation** for diverse output (deterministic for benchmarks)
 - **Qualitative test** with diverse prompts (code, reasoning, general knowledge)
-- **Loss tracking** per epoch for convergence monitoring

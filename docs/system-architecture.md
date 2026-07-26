@@ -24,19 +24,21 @@
 
 ### 2. Dataset Formatting (`format_dataset.py`)
 - **Input:** `data/raw/teacher_outputs.json`
-- **Transform:** Convert thành Qwen `<|im_start|>system/user/assistant<|im_end|>` chat template
-- **Output:** `data/processed/dataset_train.json`
+- **Transform:** Convert to Qwen `system/user/assistant` chat template + stratified 90/10 split
+- **Output:** `data/processed/dataset_train.json` (357 samples) + `dataset_test.json` (38 samples)
 
 ### 3. QLoRA Training (`train_student.py`)
 - **Base Model:** Qwen2.5-1.5B-Instruct (local `D:/models/qwen15-1.5b`)
 - **Quantization:** BitsAndBytes 4-bit NF4, double quantization, float16 compute
 - **LoRA:** rank=16, alpha=32, target=q/k/v/o projections, dropout=0.05
 - **Training:** SFTTrainer (TRL), 3 epochs, batch=1, grad_accum=8, lr=2e-4
-- **Output:** `checkpoints/adapter/` (LoRA weights) → merge thành `checkpoints/merged/`
+- **Workaround:** Pre-touch safetensors to OS cache (Windows pagefile error 1455)
+- **Output:** `checkpoints/adapter/` (LoRA weights) → merge to `checkpoints/merged/`
 
-### 4. Evaluation (`evaluate.py`, `test_model.py`)
-- **Perplexity:** Compute trên 20 held-out samples → PPL=4.70
-- **Quality test:** 3 diverse prompts (code, knowledge, reasoning)
+### 4. Evaluation (`evaluate.py`, `evaluate_extended.py`)
+- **Perplexity:** Compute on held-out test set (38 samples) → PPL=6.93 (Excellent)
+- **ROUGE-L vs teacher:** LCS-based similarity on test set → avg=0.1337
+- **Per-category PPL:** math 3.61, coding 4.66, science 5.67, creative 14.39 (weakest)
 
 ### 5. Inference (`chat.py`, `test_model.py`)
 - **Load:** 4-bit merged model → ~3.5GB VRAM
