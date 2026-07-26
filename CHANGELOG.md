@@ -10,7 +10,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   classification, backoff + jitter, output validation), resumable atomic
   generation, dataset quality pipeline (mojibake/dedup screening, stratified
   train/validation/test splits), training with validation + early stopping,
-  fp16 merge, evaluation suite (held-out PPL, ROUGE-L vs teacher, optional
+  bf16 merge, evaluation suite (held-out PPL, ROUGE-L vs teacher, optional
   LLM-as-judge), GGUF export wrapper.
 - `services/api`: OpenAI-compatible FastAPI inference service over llama.cpp
   (streaming SSE, rate limiting, /healthz /readyz /metrics), tests, Dockerfile.
@@ -23,7 +23,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Training samples now use the exact Qwen2.5 chat template with
   `<|im_start|>`/`<|im_end|>` special tokens (v0.4 trained on a plain-text
   approximation, mismatching every standard inference path).
-- Adapter merge now applies LoRA onto the fp16 base instead of the 4-bit
+- Adapter merge now applies LoRA onto the bf16 base instead of the 4-bit
   dequantized base.
 
 ### Fixed
