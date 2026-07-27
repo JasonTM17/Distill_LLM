@@ -1,9 +1,4 @@
 -r requirements.txt
-<<<<<<< HEAD
-pytest>=8
-httpx>=0.28.1
-=======
 pytest>=9.1.1
-httpx>=0.27
->>>>>>> b438d78 (build(deps-dev): update pytest requirement in /services/api)
+httpx>=0.28.1
 ruff>=0.5
