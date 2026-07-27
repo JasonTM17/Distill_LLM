@@ -9,12 +9,12 @@ Chưng cất mô hình (knowledge distillation) từ GPT-5.5-xhigh sang Qwen2.5-
 | ID | Requirement | Status |
 |----|------------|--------|
 | R1 | Kết nối 9Router API và gọi cx/gpt-5.5-xhigh | ✅ |
-| R2 | Sinh dataset đa dạng (code, toán, ML, tiếng Việt...) | ✅ 530/530, đủ 10/10 categories |
+| R2 | Sinh dataset đa dạng (code, toán, ML, tiếng Việt...) | ✅ 570 sinh / 568 qua quality gate, đủ 10/10 categories (v0.6) |
 | R3 | Fine-tune student model trên 6GB VRAM (mục tiêu: QLoRA) | ✅ 1.5B — v0.5 chạy LoRA bf16 với `LOAD_IN_4BIT=false`; nhánh QLoRA 4-bit vẫn còn trong `train.py` nhưng bitsandbytes lỗi trong env này |
 | R4 | Merge adapter và deploy model inference local | ✅ |
-| R5 | Đánh giá chất lượng trên held-out set (không in-sample) | ✅ PPL 5.23 @cap 2048 (100% token coverage) · 5.38 @cap 512 (khớp protocol v0.4, −22.4%) · ROUGE-L 0.1534 · [báo cáo](../plans/reports/evaluation-v0.5.md) |
+| R5 | Đánh giá chất lượng trên held-out set (không in-sample) | ✅ v0.5 PPL 5.23 @cap 2048 (100% token coverage) · 5.38 @cap 512 (khớp protocol v0.4, −22.4%) · ROUGE-L 0.1534 · [báo cáo v0.5](../plans/reports/evaluation-v0.5.md). v0.6: PPL 5.85 (lùi, thử nghiệm) · [báo cáo v0.6](../plans/reports/evaluation-v0.6.md) |
 | R6 | Interactive chat để test model | ✅ |
-| R7 | Expand dataset to 530 prompts | ✅ 530/530 |
+| R7 | Expand dataset | ✅ 570 prompts (v0.5: 530; v0.6: +40 cho creative/vietnamese/reasoning) |
 | R8 | Train student lớn hơn (3B) khi đủ VRAM | 🔜 |
 | R9 | Support streaming generation | ✅ SSE streaming trong `services/api` |
 | R10 | Export model sang GGUF/ONNX | ✅ GGUF Q4_K_M + Q5_K_M; ONNX chưa làm |
@@ -23,14 +23,14 @@ Chưng cất mô hình (knowledge distillation) từ GPT-5.5-xhigh sang Qwen2.5-
 
 | Metric | Target | Current |
 |--------|--------|---------|
-| Dataset size | 530 prompts | 530 sinh / 528 qua quality gate (10/10 categories) |
+| Dataset size | ≥ 530 prompts | 570 sinh / 568 qua quality gate (v0.6); v0.5: 530/528; 10/10 categories |
 | Training loss (3 epoch) | < 1.5 | 1.3785 |
 | Validation loss (best) | — | 1.4092 (checkpoint-125) |
 | Token accuracy | > 65% | không đo ở v0.5 (v0.4: 65.3%) — v0.5 đo ROUGE-L / token-F1, là metric khác |
-| **Perplexity (held-out)** | < 10 | **5.23** @cap 2048 (100% coverage) · 5.38 @cap 512 |
+| **Perplexity (held-out)** | < 10 | v0.5 **5.23** @cap 2048 (canonical) · v0.6 5.85 @cap 2048 (lùi — test split khó hơn + science/philosophy lùi; xem roadmap) · 5.38 @cap 512 |
 | VRAM (train) | < 6GB | ~5GB |
 | VRAM (inference) | < 3.5GB | ~3.5GB |
-| Held-out test samples | ≥ 30 | 51 (stratified, split 426/51/51) |
+| Held-out test samples | ≥ 30 | v0.5: 51 (426/51/51) · v0.6: 54 (460/54/54) |
 | Response quality | Clean code, accurate | ✅ |
 
 ## Tech Stack

@@ -1,10 +1,11 @@
 # Project Roadmap
 
-## Current: v0.5 — Production Complete (in progress, 2026-07-26)
+## Current: v0.6 closeout (2026-07-27)
 
-Full 530-prompt dataset, hardened pipeline as a tested package, retrain with
-validation, GGUF export, containerized API + chat UI, CI. Plan:
-`plans/2026-07-26-production-complete/`.
+v0.5 là model shipped/canonical. v0.6 mở rộng category yếu và retrain; cải thiện
+được mục tiêu nhưng lùi overall → đóng lại như thử nghiệm, không ship. Tiếp theo:
+v0.7 xử lý regression và chạy judge. Plans: `plans/2026-07-26-production-complete/`,
+`plans/2026-07-27-v06-expand-and-retrain/`.
 
 ## Roadmap
 
@@ -13,7 +14,7 @@ validation, GGUF export, containerized API + chat UI, CI. Plan:
 - [x] Known gaps: 134 prompts lost to unretried transient errors
   (philosophy + health = 0 samples), Vietnamese mojibake, no validation split
 
-### v0.5 — Production Complete (🔄 2026-07-26)
+### v0.5 — Production Complete (✅ 2026-07-26) — canonical served model
 - [x] `src/distill` package: resilient teacher client + resumable generation
 - [x] **530/530 prompts generated** — all 10 categories, zero mojibake
 - [x] Dataset quality gate + stratified 80/10/10 splits (426/51/51)
@@ -30,16 +31,36 @@ validation, GGUF export, containerized API + chat UI, CI. Plan:
       (−22.4%), ROUGE-L 0.1534, per-category breakdown at all three caps:
       [`plans/reports/evaluation-v0.5.md`](../plans/reports/evaluation-v0.5.md)
 - [x] README/docs sync
-- [ ] Final compose smoke test — blocked, Docker is not up
+- [ ] Final compose smoke test — blocked, Docker was not up at release time
+      (manual smoke test documented in `docs/deployment-guide.md`)
 
-### v0.6 — Advanced Distillation
+### v0.6 — Expand weak categories + retrain (⚠️ 2026-07-27, experiment, not shipped)
+Plan: `plans/2026-07-27-v06-expand-and-retrain/`. Report:
+`plans/reports/evaluation-v0.6.md`.
+- [x] Prompt catalogue expanded 530 → 570 (+15 creative, +15 vietnamese, +10 reasoning)
+- [x] 570 teacher outputs generated, 568 accepted, stratified split 460/54/54
+- [x] Retrain 3-epoch bf16 LoRA, best val loss 1.4599 @ step 174
+- [x] Evaluate v0.6 — overall PPL **5.85** @cap 2048 (target ≤ 5.23: **NOT met**)
+- [x] Target weak categories improved: creative 14.95→14.21, vietnamese
+      8.35→7.02, reasoning 5.17→3.67, ml_ai 5.49→4.17
+- [ ] `science` (4.81→6.06) and `philosophy` (5.26→6.22) regressed — expanding
+      only weak categories diluted the strong ones
+- [ ] LLM-as-judge still not run (judge API unreachable)
+- [ ] v0.6 GGUF not exported — v0.5 GGUF remains the served artifact (better overall)
+
+**Lesson:** a bare weak-category expansion lifts the targets but trades away
+strong categories and raises the (harder, regenerated) test-set headline. v0.7
+must expand without under-representing strong categories, and run the judge.
+
+### v0.7 — Recovery + advanced distillation
+- [ ] Beat v0.5's 5.23: re-expand catalogue without under-representing strong
+      categories (rebalance, not just append); retrain; re-evaluate
+- [ ] Run LLM-as-judge (the metric v0.5/v0.6 both skipped) once the judge API is up
 - [ ] Teacher ensemble: add `cx/gpt-5.6-terra` as comparative teacher
-- [ ] Fix or replace broken bnb 4-bit loading (torch stable 2.13?) → retrain
-      QLoRA at seq 1024 (dataset already stores full-length samples)
+- [ ] Fix or replace broken bnb 4-bit loading (torch stable?) → retrain QLoRA at
+      seq 1024 (dataset stores full-length samples)
 - [ ] Benchmark suite (GSM8K-mini, HumanEval-mini, MMLU subset)
 - [ ] True distillation with logit matching (requires open-weight teacher)
-
-### v0.7 — Model Scaling
 - [ ] Qwen2.5-3B student (`D:/models/qwen25-3b` already downloaded, 5.76GB)
 - [ ] Flash Attention 2 / Unsloth for faster training
 
