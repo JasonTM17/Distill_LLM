@@ -165,12 +165,22 @@ EVAL_MAX_NEW_TOKENS = _env_int("EVAL_MAX_NEW_TOKENS", 512)
 EVAL_TEMPERATURE = _env_float("EVAL_TEMPERATURE", 0.7)
 EVAL_TOP_P = _env_float("EVAL_TOP_P", 0.9)
 
+# Truncation cap for held-out perplexity, deliberately separate from the
+# training MAX_SEQ_LENGTH above: sharing one knob makes "evaluate at full
+# length" impossible without reconfiguring training to a length that OOMs.
+# 2048 covers every sample in the current test split, so the default run scores
+# the whole held-out set instead of silently dropping its longest answers.
+EVAL_MAX_SEQ_LENGTH = _env_int("EVAL_MAX_SEQ_LENGTH", 2048)
+
+# Answer generation samples (do_sample=True), so without a seed every ROUGE-L
+# and token-F1 figure is a single draw of unknown variance.
+EVAL_SEED = _env_int("EVAL_SEED", 42)
+
 
 # ── Inference service ──────────────────────────────────────────────────────
 API_HOST = _env_str("API_HOST", "0.0.0.0")
 API_PORT = _env_int("API_PORT", 8000)
 MODEL_PATH = _env_str("MODEL_PATH", str(MERGED_MODEL_DIR))
-MODEL_DTYPE = _env_str("MODEL_DTYPE", "float16")
 MODEL_LOAD_IN_4BIT = _env_bool("MODEL_LOAD_IN_4BIT", False)
 MAX_CONTEXT_TOKENS = _env_int("MAX_CONTEXT_TOKENS", 4096)
 RATE_LIMIT_REQUESTS = _env_int("RATE_LIMIT_REQUESTS", 60)
@@ -219,6 +229,7 @@ def summary() -> dict[str, object]:
         "judge_model": JUDGE_MODEL,
         "student_model_id": STUDENT_MODEL_ID,
         "max_seq_length": MAX_SEQ_LENGTH,
+        "eval_max_seq_length": EVAL_MAX_SEQ_LENGTH,
         "num_epochs": NUM_EPOCHS,
         "load_in_4bit": LOAD_IN_4BIT,
     }
