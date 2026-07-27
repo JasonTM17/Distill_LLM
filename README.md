@@ -9,7 +9,7 @@
 ## Mục lục
 
 - [Dự án này làm gì?](#dự-án-này-làm-gì)
-- [Kết quả v0.5](#kết-quả-v05)
+- [Kết quả v0.5 & v0.6](#kết-quả-v05)
 - [Kiến trúc](#kiến-trúc)
 - [Chạy nhanh bằng Docker](#chạy-nhanh-bằng-docker)
 - [Dùng web chat và lịch sử hội thoại](#dùng-web-chat-và-lịch-sử-hội-thoại)
@@ -45,11 +45,37 @@ Perplexity luôn đi kèm truncation cap. Test split có median 525 token: cap 5
 
 Tái tạo headline: `python -m distill.evaluate --label v0.5`. Báo cáo đầy đủ: [`plans/reports/evaluation-v0.5.md`](plans/reports/evaluation-v0.5.md).
 
+### v0.6 — mở rộng category yếu (thử nghiệm, không ship)
+
+v0.6 thêm 40 prompt cho `creative`/`vietnamese`/`reasoning` (3 category yếu nhất
+của v0.5), sinh lại teacher outputs (570/568 accepted), re-split 460/54/54 và
+retrain 3 epoch. **Kết quả hỗn hợp, không đạt mục tiêu:**
+
+| Metric | v0.5 (canonical) | v0.6 (thử nghiệm) |
+|---|---:|---:|
+| Overall held-out PPL @cap 2048 | **5.23** | 5.85 (mục tiêu ≤ 5.23: ✗) |
+| `creative` PPL | 14.95 | **14.21** ✓ |
+| `vietnamese` PPL | 8.35 | **7.02** ✓ |
+| `reasoning` PPL | 5.17 | **3.67** ✓ |
+| `ml_ai` PPL | 5.49 | **4.17** ✓ |
+| `science` PPL | 4.81 | 6.06 ✗ |
+| `philosophy` PPL | 5.26 | 6.22 ✗ |
+| LLM-as-judge | chưa chạy | chưa chạy |
+| GGUF export | Q4_K_M + Q5_K_M | chưa export |
+
+3 category mục tiêu **cải thiện**, nhưng `science`/`philosophy` **lùi** và
+headline **tệ hơn** — một phần do test split đổi (51→54 mẫu, nhiều category PPL
+cao hơn), một phần do mở rộng chỉ category yếu làm loãng category mạnh. **Serving
+vẫn dùng v0.5 GGUF** (model tốt hơn overall). Báo cáo:
+[`plans/reports/evaluation-v0.6.md`](plans/reports/evaluation-v0.6.md). Bài học
+và kế hoạch v0.7: [`docs/project-roadmap.md`](docs/project-roadmap.md).
+
+
 ## Kiến trúc
 
 ```text
 OFFLINE — RTX 3060 6GB                         ONLINE — docker compose
-prompts.json (530)                             ┌────────────┐    REST / SSE   ┌──────────────┐
+prompts.json (570)                             ┌────────────┐    REST / SSE   ┌──────────────┐
   → generate_dataset (9Router)                 │ web        │ ───────────────▶│ api          │
   → dataset (quality gate + split)             │ React/Vite │                  │ FastAPI      │
   → train (bf16 LoRA + validation)             │ nginx      │◀─────────────────│ llama.cpp CPU│

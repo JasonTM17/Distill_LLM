@@ -1,7 +1,7 @@
 ---
 title: "v0.6 — Expand weak categories and retrain with judge eval"
 description: "Add 40 prompts for creative/vietnamese/reasoning, regenerate from cx/gpt-5.5-xhigh, retrain, evaluate with LLM-as-judge."
-status: in-progress
+status: completed-with-concerns
 priority: P1
 effort: 4h
 branch: master
@@ -11,7 +11,46 @@ created: 2026-07-27
 
 ## Status
 
-In progress. Generation of 40 new teacher outputs running in background.
+Completed with concerns (2026-07-27). Phases 1-6 ran; phases 7-8 did not.
+Acceptance criterion "PPL @2048 ≤ 5.23" was NOT met (5.85). See Outcome.
+
+## Outcome
+
+| Phase | Status |
+|---|---|
+| 1. Add 40 prompts (IDs 531-570) | ✅ done — 570 prompts total |
+| 2. Generate teacher outputs | ✅ done — 570 generated, 568 accepted (2 too short) |
+| 3. Re-split dataset | ✅ done — 460 / 54 / 54, 10 categories each |
+| 4. Retrain v0.6 | ✅ done — 3 epochs, best val loss 1.4599 @ step 174 |
+| 5. Merge | ✅ done — `checkpoints/merged/` |
+| 6. Evaluate v0.6 | ⚠️ done, judge NOT run — PPL 5.85 @cap 2048 |
+| 7. Export GGUF v0.6 | ❌ not done — no v0.6 GGUF; serving stays on v0.5 |
+| 8. Update docs | ❌ not done in run — handled by the closeout plan |
+
+### Honest result
+
+- **Overall held-out PPL @cap 2048: 5.85 vs v0.5's 5.23 — regressed on the
+  headline.** Not apples-to-apples: the test split was regenerated (51→54
+  samples) with more creative/vietnamese (inherently high-PPL), so part of the
+  rise is a harder test set, not a worse model.
+- **Target weak categories improved**: creative 14.95→14.21, vietnamese
+  8.35→7.02, reasoning 5.17→3.67, ml_ai 5.49→4.17.
+- **Two non-target categories regressed**: science 4.81→6.06, philosophy
+  5.26→6.22 — expanding only the weak categories likely diluted capacity on the
+  strong ones.
+- **Validation loss also rose**: 1.4092 (v0.5) → 1.4599 (v0.6), partly the harder
+  val set, partly real.
+- **LLM-as-judge never ran** (judge API unreachable) — the third metric v0.5 and
+  v0.6 both skipped.
+- **No v0.6 GGUF exported** — the served artifact is still v0.5, which is the
+  better overall model.
+
+### Decision
+
+v0.5 remains the canonical served model. v0.6 is a documented experiment: it
+proves expanding weak categories lifts them, but a bare expansion trades away
+strong categories. v0.7 should expand the catalogue without leaving the strong
+categories under-represented, and run the judge. See `docs/project-roadmap.md`.
 
 ## Context
 
