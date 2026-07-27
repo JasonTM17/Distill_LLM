@@ -4,6 +4,11 @@
 Qwen2.5-1.5B-Instruct, trained locally on an RTX 3060 6GB — then served as a
 containerized OpenAI-compatible API + web chat UI.
 
+![The chat UI streaming an answer from the distilled model](docs/assets/chat-streaming.gif)
+
+<sub>Real capture: the 1.5B student answering over SSE, served by llama.cpp on
+CPU at ~1.4 tok/s. Playback is sped up.</sub>
+
 ## Results
 
 ### v0.5 (current) — full 530-prompt dataset
@@ -23,10 +28,20 @@ held-out tokens, 1024 scores 92%, and 2048 scores 100%. **Only same-cap numbers
 may be compared.** The −22.4% figure is 512-vs-512; v0.4's own truncation rate
 is unmeasurable because its 38-sample split was regenerated for v0.5.
 
-Reproduce the headline with `MAX_SEQ_LENGTH=2048 python -m distill.evaluate
---label v0.5` as a per-process env override only — `MAX_SEQ_LENGTH` is shared
-with training, and persisting 2048 in `.env` reconfigures training to a length
-that OOMs.
+`python -m distill.evaluate --label v0.5` reproduces the headline: evaluation
+has its own `EVAL_MAX_SEQ_LENGTH` (default 2048), separate from the training
+`MAX_SEQ_LENGTH`, so measuring the whole test set cannot reconfigure training.
+Add `--ppl-caps 512,1024,2048` for the full sweep, or `--max-seq-length 1024` to
+reproduce the 5.30 this project published before the cap was recorded.
+
+![Held-out perplexity and ROUGE-L per category](docs/assets/evaluation-by-category.png)
+
+The headline average hides the spread. `creative` is roughly 3x the overall
+perplexity and is nearly cap-invariant (15.04 / 14.95 / 14.95 across the three
+caps), so it is genuine model weakness rather than a measurement artifact — and
+ROUGE-L ranks it last too. `vietnamese` is the opposite case: part of its
+apparent weakness was truncation, and it improves 9.20 → 8.79 → 8.35 as the cap
+rises.
 
 Full report: [`plans/reports/evaluation-v0.5.md`](plans/reports/evaluation-v0.5.md)
 
