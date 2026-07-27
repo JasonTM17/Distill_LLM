@@ -1,135 +1,189 @@
-# distill-gpt55 — Distill GPT-5.5-xhigh → Qwen2.5-1.5B
+# distill-gpt55
 
-**Knowledge distillation** from GPT-5.5-xhigh (via 9Router API) into
-Qwen2.5-1.5B-Instruct, trained locally on an RTX 3060 6GB — then served as a
-containerized OpenAI-compatible API + web chat UI.
+> Chưng cất GPT-5.5-xhigh qua 9Router thành Qwen2.5-1.5B-Instruct, huấn luyện cục bộ trên RTX 3060 6GB, rồi phục vụ qua API tương thích OpenAI và web chat streaming.
 
-![The chat UI streaming an answer from the distilled model](docs/assets/chat-streaming.gif)
+![Giao diện chat streaming của model đã distill](docs/assets/chat-streaming.gif)
 
-<sub>Real capture: the 1.5B student answering over SSE, served by llama.cpp on
-CPU at ~1.4 tok/s. Playback is sped up.</sub>
+<sub>Ảnh chụp thực tế: student 1.5B trả lời qua SSE từ llama.cpp chạy CPU, khoảng 1.4 token/giây; video được tăng tốc.</sub>
 
-## Results
+## Mục lục
 
-### v0.5 (current) — full 530-prompt dataset
+- [Dự án này làm gì?](#dự-án-này-làm-gì)
+- [Kết quả v0.5](#kết-quả-v05)
+- [Kiến trúc](#kiến-trúc)
+- [Chạy nhanh bằng Docker](#chạy-nhanh-bằng-docker)
+- [Dùng web chat và lịch sử hội thoại](#dùng-web-chat-và-lịch-sử-hội-thoại)
+- [Pipeline huấn luyện](#pipeline-huấn-luyện)
+- [Kiểm thử](#kiểm-thử)
+- [Tài liệu chi tiết](#tài-liệu-chi-tiết)
 
-| Metric | v0.4 | **v0.5** |
-|--------|------|----------|
-| Held-out perplexity (cap 2048, 100% of test tokens) | not measured at this cap | **5.23** |
-| Held-out perplexity (cap 512, v0.4 protocol match) | 6.93 | **5.38** (−22.4%) |
-| Validation loss (best) | — (no val split) | **1.409** |
-| Dataset (train/val/test) | 357 / 0 / 38 | **426 / 51 / 51** |
-| Teacher outputs | 396/530 (philosophy+health = 0) | **530/530 generated, 528 kept** |
-| Chat template | plain-text approximation | exact Qwen `<|im_start|>` template |
+## Dự án này làm gì?
 
-Perplexity is reported with its truncation cap because the two are inseparable:
-the test split's median sample is 525 tokens, so a 512 cap scores only 70% of
-held-out tokens, 1024 scores 92%, and 2048 scores 100%. **Only same-cap numbers
-may be compared.** The −22.4% figure is 512-vs-512; v0.4's own truncation rate
-is unmeasurable because its 38-sample split was regenerated for v0.5.
+`distill-gpt55` có hai phần tách biệt:
 
-`python -m distill.evaluate --label v0.5` reproduces the headline: evaluation
-has its own `EVAL_MAX_SEQ_LENGTH` (default 2048), separate from the training
-`MAX_SEQ_LENGTH`, so measuring the whole test set cannot reconfigure training.
-Add `--ppl-caps 512,1024,2048` for the full sweep, or `--max-seq-length 1024` to
-reproduce the 5.30 this project published before the cap was recorded.
+| Phần | Mục đích | Khi nào cần chạy |
+|---|---|---|
+| **Offline training** | Sinh teacher outputs, lọc/split dataset, fine-tune LoRA, đánh giá, export GGUF | Khi tái tạo hoặc cải thiện model |
+| **Online serving** | Phục vụ GGUF bằng FastAPI + llama.cpp và chat UI React | Khi muốn dùng model |
 
-![Held-out perplexity and ROUGE-L per category](docs/assets/evaluation-by-category.png)
+Bạn **không cần** 9Router, GPU, hay môi trường training để chạy bản GGUF đã export. Serving hiện chạy CPU trong API container.
 
-The headline average hides the spread. `creative` is roughly 3x the overall
-perplexity and is nearly cap-invariant (15.04 / 14.95 / 14.95 across the three
-caps), so it is genuine model weakness rather than a measurement artifact — and
-ROUGE-L ranks it last too. `vietnamese` is the opposite case: part of its
-apparent weakness was truncation, and it improves 9.20 → 8.79 → 8.35 as the cap
-rises.
+## Kết quả v0.5
 
-Full report: [`plans/reports/evaluation-v0.5.md`](plans/reports/evaluation-v0.5.md)
+| Metric | v0.4 | **v0.5 hiện tại** |
+|---|---:|---:|
+| Held-out perplexity, cap 2048 | Chưa đo ở cap này | **5.23** |
+| Held-out perplexity, cap 512 | 6.93 | **5.38** (giảm 22.4%) |
+| Validation loss tốt nhất | Không có validation split | **1.409** |
+| Dataset train / validation / test | 357 / 0 / 38 | **426 / 51 / 51** |
+| Teacher outputs | 396 / 530 | **530 sinh, 528 giữ lại** |
+| Chat template | Plain-text gần đúng | Qwen `<|im_start|>` chính xác |
 
-## Architecture
+Perplexity luôn đi kèm truncation cap. Test split có median 525 token: cap 512 chỉ chấm khoảng 70% token, còn cap 2048 chấm 100%. Chỉ so sánh các số đo ở **cùng cap**.
 
+![Perplexity và ROUGE-L theo category](docs/assets/evaluation-by-category.png)
+
+Tái tạo headline: `python -m distill.evaluate --label v0.5`. Báo cáo đầy đủ: [`plans/reports/evaluation-v0.5.md`](plans/reports/evaluation-v0.5.md).
+
+## Kiến trúc
+
+```text
+OFFLINE — RTX 3060 6GB                         ONLINE — docker compose
+prompts.json (530)                             ┌────────────┐    REST / SSE   ┌──────────────┐
+  → generate_dataset (9Router)                 │ web        │ ───────────────▶│ api          │
+  → dataset (quality gate + split)             │ React/Vite │                  │ FastAPI      │
+  → train (bf16 LoRA + validation)             │ nginx      │◀─────────────────│ llama.cpp CPU│
+  → merge → evaluate → export_gguf             └────────────┘                  └──────┬───────┘
+                                                                             GGUF /models (RO)
 ```
-OFFLINE (RTX 3060 6GB)                        ONLINE (docker compose)
-prompts.json (530)                            ┌─────────┐      ┌─────────┐
-  → distill.generate_dataset (9Router)        │   web   │─────▶│   api   │
-  → distill.dataset (screen + split)          │  React  │ SSE  │ FastAPI │
-  → distill.train (bf16 LoRA + validation)    │  nginx  │      │llama.cpp│
-  → distill.merge → distill.evaluate          └─────────┘      └────┬────┘
-  → distill.export_gguf ──────────────────────── GGUF volume ───────┘
-```
 
-Details: [`docs/system-architecture.md`](docs/system-architecture.md)
+Chi tiết thành phần, contract và data flow: [`docs/system-architecture.md`](docs/system-architecture.md).
 
-## Quick start — serving
+## Chạy nhanh bằng Docker
+
+### Điều kiện cần
+
+1. Docker Desktop với Compose v2.
+2. File GGUF tại `checkpoints/gguf/distill-gpt55-v0.5-Q4_K_M.gguf`.
+
+### Khởi động
 
 ```bash
 docker compose up --build
-# web: http://localhost:3000   api: http://localhost:8000 (OpenAI-compatible)
 ```
 
-Needs `checkpoints/gguf/distill-gpt55-v0.5-Q4_K_M.gguf` (see pipeline below or
-[`docs/deployment-guide.md`](docs/deployment-guide.md)).
+| Dịch vụ | URL | Ghi chú |
+|---|---|---|
+| Web chat | http://localhost:3000 | Chỉ khởi động sau khi API ready |
+| API | http://localhost:8000 | OpenAI-compatible |
+| Readiness | http://localhost:8000/readyz | `503` trong lúc GGUF đang load |
+| Liveness | http://localhost:8000/healthz | Process còn sống |
 
-## Quick start — training pipeline
+Xác minh API sau khi model load:
 
 ```bash
-pip install -e .[train,dev]           # or: set PYTHONPATH=src
+curl http://localhost:8000/readyz
+curl http://localhost:8000/v1/chat/completions -H "Content-Type: application/json" \
+  -d '{"messages":[{"role":"user","content":"What is 2+2?"}]}'
+```
+
+Nếu `/readyz` vẫn trả `503`, xem `docker compose logs api`; đừng kết luận service hỏng chỉ vì model đang cold-start. Hướng dẫn triển khai và rollback: [`docs/deployment-guide.md`](docs/deployment-guide.md).
+
+## Dùng web chat và lịch sử hội thoại
+
+Giao diện là một chat view với streaming SSE, markdown đã sanitize cho assistant output, tùy chọn generation và history local-first.
+
+### Luồng sử dụng
+
+1. Mở http://localhost:3000 và chờ badge hiện **model ready**.
+2. Nhập câu hỏi; `Enter` gửi, `Shift+Enter` xuống dòng.
+3. Dùng **New chat** hoặc sidebar để tạo/chuyển/xóa hội thoại.
+4. Khi đang sinh, dùng **Stop** để abort request. Điều hướng history bị khóa trong thời gian này để token không ghi nhầm vào chat khác.
+
+### Lịch sử được lưu ở đâu?
+
+History chỉ lưu trong `localStorage` của **browser profile hiện tại**, dưới key `distill-gpt55.chat-history.v1`.
+
+| Hành vi | Thực tế |
+|---|---|
+| Giới hạn | 30 conversations gần nhất; 100 completed messages/conversation |
+| Tiêu đề | Tạo từ user prompt đầu tiên, gọn tối đa 48 ký tự |
+| Dữ liệu không lưu | Assistant response rỗng, lỗi hoặc chưa hoàn tất |
+| Khi storage lỗi/đầy | Chat hiện tại vẫn dùng được trong RAM; persistence bị bỏ qua |
+| Sync / account / export / recovery | **Không có** |
+| Khi xóa site data hoặc đổi browser/profile | History biến mất khỏi browser đó |
+
+History trong UI được gửi lại làm context ở lượt kế tiếp, cùng với system prompt. Đây **không** phải bộ nhớ dài hạn: API mặc định có cửa sổ context 4096 token và hiện web không token-truncate history trước request. Giữ conversation ngắn nếu câu trả lời bắt đầu lỗi context hoặc kém liên quan.
+
+Chi tiết UX, accessibility và quy ước UI: [`docs/design-guidelines.md`](docs/design-guidelines.md). Hướng dẫn frontend: [`services/web/README.md`](services/web/README.md).
+
+## Pipeline huấn luyện
+
+> Cần Python environment phù hợp, 9Router cho generation/judge và RTX 3060 6GB cho training theo cấu hình v0.5.
+
+```bash
+pip install -e .[train,dev]
 set PYTHONPATH=src
 
-python -m distill.download_student    # base model -> D:/models/qwen15-1.5b
-python -m distill.generate_dataset    # teacher outputs (resumable, retries failures)
-python -m distill.dataset             # quality gate + 80/10/10 stratified splits
-python -m distill.train               # LoRA + validation + early stopping
-python -m distill.merge               # adapter -> merged bf16 model
-python -m distill.evaluate --label v0.5   # cap decides the number — see Results
-python -m distill.export_gguf         # Q4_K_M + Q5_K_M via llama.cpp
-python -m distill.chat                # interactive smoke test
+python -m distill.download_student
+python -m distill.generate_dataset
+python -m distill.dataset
+python -m distill.train
+python -m distill.merge
+python -m distill.evaluate --label v0.5
+python -m distill.export_gguf
+python -m distill.chat
 ```
 
-Environment knobs live in [`.env.example`](.env.example). On this machine
-training runs with `LOAD_IN_4BIT=false GRADIENT_CHECKPOINTING=true MAX_SEQ_LENGTH=512`
-(see `docs/code-standards.md` for the hard-won torch-nightly constraints).
+Copy `.env.example` thành `.env` rồi điền API key trước khi gọi teacher. Với máy tương tự, v0.5 dùng `LOAD_IN_4BIT=false`, `GRADIENT_CHECKPOINTING=true`, `MAX_SEQ_LENGTH=512`: bitsandbytes 4-bit hiện lỗi trong Python 3.14 + torch nightly. Không commit `.env`.
 
-## Hyperparameters (v0.5)
-
-| Param | Value | Note |
-|-------|-------|------|
-| Method | LoRA r=16 α=32 on q/k/v/o | bf16 base (bnb 4-bit broken in this env) |
-| Batch | 1 × grad-accum 8 | 6GB VRAM |
-| LR / schedule | 2e-4 cosine, 3 epochs | early stopping on val loss |
-| Max seq len | 512 | 152K-vocab logits OOM at 1024 |
-| Eval | every 25 steps on 51-sample val split | best checkpoint restored |
-
-## Tests
+## Kiểm thử
 
 ```bash
-python -m pytest tests/ -q                    # pipeline package (49 tests)
-cd services/api && python -m pytest tests/ -q # API (fake runtime, no model)
-cd services/web && pnpm test && pnpm build    # UI + type check
+python -m pytest tests/ -q                    # training pipeline
+cd services/api && python -m pytest tests/ -q # API, fake runtime, không cần model/GPU
+cd services/web && pnpm test && pnpm build    # UI tests + typecheck + production build
 ruff check src/ tests/ services/api/
 ```
 
-## Web chat history
+API contract chuẩn là [`docs/openapi.yaml`](docs/openapi.yaml). Sau khi sửa API, regenerate frontend types rồi kiểm tra diff:
 
-The web UI keeps up to 30 recent conversations in the current browser's
-`localStorage`. Histories remain on that device and browser profile: there is no
-account, server-side storage, sync, export, or recovery if site data is cleared.
-Incomplete and failed assistant responses are excluded from saved history.
+```bash
+cd services/web
+pnpm run generate-client
+pnpm build
+```
+
+## Tài liệu chi tiết
+
+| Tài liệu | Nội dung |
+|---|---|
+| [`docs/project-overview-pdr.md`](docs/project-overview-pdr.md) | Requirements, metric, constraint và risk sản phẩm |
+| [`docs/system-architecture.md`](docs/system-architecture.md) | Kiến trúc offline/online và chat data flow |
+| [`docs/deployment-guide.md`](docs/deployment-guide.md) | Docker, local run, smoke test, resource và rollback |
+| [`docs/code-standards.md`](docs/code-standards.md) | Quy ước code, test, contract và training constraints |
+| [`docs/design-guidelines.md`](docs/design-guidelines.md) | Design tokens, responsive/accessibility, state và history UX |
+| [`docs/project-roadmap.md`](docs/project-roadmap.md) | Những phần đã hoàn thành, giới hạn đã biết và roadmap |
+| [`services/api/README.md`](services/api/README.md) | API endpoints, config và runbook |
+| [`services/web/README.md`](services/web/README.md) | Web setup, history behaviour và frontend troubleshooting |
 
 ## Repo layout
 
-```
-src/distill/       training pipeline package
-services/api/      FastAPI + llama.cpp inference service (own README)
-services/web/      React chat UI (own README)
-data/              prompts + raw teacher outputs + processed splits
-checkpoints/       adapter / merged / gguf artifacts (gitignored)
-docs/              architecture, standards, roadmap, deployment, openapi.yaml
-plans/             ClaudeKit plans + evaluation reports
+```text
+src/distill/       Training pipeline package
+services/api/      FastAPI + llama.cpp inference service
+services/web/      React chat UI
+data/              Prompts, teacher outputs, processed splits
+checkpoints/       Adapter, merged model, GGUF artifacts (gitignored)
+docs/              Architecture, deployment, standards, roadmap, OpenAPI
+plans/             ClaudeKit plans và evaluation reports
 ```
 
-## Constraints
+## Known constraints
 
-- **6GB VRAM** → LoRA + gradient checkpointing (QLoRA when bnb works again)
-- **Python 3.14** → torch nightly cu128; several loader bugs worked around
-  (bf16-only, CPU-first loads — see `docs/code-standards.md`)
-- **9Router** at `localhost:20128` needed only for generation/judge, never serving
+- **6GB VRAM:** v0.5 dùng bf16 LoRA + gradient checkpointing; sequence length training bị giới hạn 512.
+- **Python 3.14:** cần torch nightly CUDA; load model CPU-first rồi mới đưa sang GPU để tránh crash đã biết.
+- **9Router:** chỉ cần cho sinh dataset/judge, không cần khi serving.
+- **Local deployment:** API serialize generation vì llama.cpp context không thread-safe; không phải multi-user scale-out service.
+
+Xem các giới hạn, lý do và hướng xử lý tại [`docs/project-roadmap.md`](docs/project-roadmap.md).
