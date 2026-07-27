@@ -108,6 +108,13 @@ cd services/web && pnpm test && pnpm build    # UI + type check
 ruff check src/ tests/ services/api/
 ```
 
+## Web chat history
+
+The web UI keeps up to 30 recent conversations in the current browser's
+`localStorage`. Histories remain on that device and browser profile: there is no
+account, server-side storage, sync, export, or recovery if site data is cleared.
+Incomplete and failed assistant responses are excluded from saved history.
+
 ## Repo layout
 
 ```
