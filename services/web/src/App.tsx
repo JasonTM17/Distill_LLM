@@ -3,13 +3,17 @@
 import { useEffect, useRef, useState } from 'react'
 import { fetchReadiness } from './api/client'
 import { ChatComposer } from './components/chat-composer'
+import { ChatHistorySidebar } from './components/chat-history-sidebar'
 import { MessageBubble } from './components/message-bubble'
 import { useChat } from './hooks/use-chat'
 
 type Readiness = 'ready' | 'loading' | 'down' | 'checking'
 
 export default function App() {
-  const { messages, busy, send, stop, clear } = useChat()
+  const {
+    conversations, selectedConversationId, messages, busy, send, stop,
+    newConversation, selectConversation, deleteConversation,
+  } = useChat()
   const [readiness, setReadiness] = useState<Readiness>('checking')
   const scrollAnchor = useRef<HTMLDivElement>(null)
 
@@ -32,7 +36,16 @@ export default function App() {
   }, [messages])
 
   return (
-    <div className="shell">
+    <div className="app-layout">
+      <ChatHistorySidebar
+        conversations={conversations}
+        selectedConversationId={selectedConversationId}
+        disabled={busy}
+        onNewConversation={newConversation}
+        onSelectConversation={selectConversation}
+        onDeleteConversation={deleteConversation}
+      />
+      <div className="shell">
       <header>
         <h1>
           distill-gpt55 <span className="subtitle">Qwen2.5-1.5B · distilled from GPT-5.5</span>
@@ -45,14 +58,14 @@ export default function App() {
               : readiness === 'down' ? 'API offline' : 'checking…'}
           </span>
           {messages.length > 0 ? (
-            <button className="ghost" onClick={clear} disabled={busy}>
+            <button className="ghost" onClick={newConversation} disabled={busy}>
               New chat
             </button>
           ) : null}
         </div>
       </header>
 
-      <main>
+      <main aria-live="polite" aria-relevant="additions text">
         {messages.length === 0 ? (
           <div className="empty-state">
             <p className="empty-title">Chat with a 1.5B model distilled on this machine</p>
@@ -73,6 +86,7 @@ export default function App() {
       </main>
 
       <ChatComposer busy={busy} disabled={readiness !== 'ready'} onSend={send} onStop={stop} />
+      </div>
     </div>
   )
 }
