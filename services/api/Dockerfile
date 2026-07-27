@@ -1,5 +1,5 @@
 # Build stage: compile llama-cpp-python (CPU) and collect wheels
-FROM python:3.12-slim AS builder
+FROM python:3.14-slim AS builder
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential cmake ninja-build git \
@@ -13,7 +13,7 @@ RUN pip wheel --wheel-dir /wheels \
     -r requirements.txt
 
 # Runtime stage: slim, non-root, no compilers
-FROM python:3.12-slim
+FROM python:3.14-slim
 
 ARG REVISION=unknown
 LABEL org.opencontainers.image.source="https://github.com/JasonTM17/distill-gpt55" \
