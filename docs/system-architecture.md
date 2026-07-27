@@ -65,9 +65,47 @@ for the bf16 path to fit in 6GB.
 ### web — React chat UI (`services/web`)
 - Vite + React + TS; API client **generated** from `docs/openapi.yaml`
   (`pnpm run generate-client`) — no hand-written contract types
-- Streaming token rendering (buffered SSE parser), stop/abort, health polling,
+- Streaming token rendering (buffered SSE parser), stop/abort, `/readyz` polling,
   sanitized markdown (DOMPurify)
+- Local-first conversation history in browser `localStorage`; no account, database,
+  sync, server-side persistence, export, or recovery capability
 - Image: node builder → nginx-unprivileged alpine, non-root, HEALTHCHECK
+
+### Chat request and local-history data flow
+
+The web service owns presentation state only. It does not expose an API and it never
+posts persisted history to a storage service.
+
+```text
+Browser localStorage                         Browser memory                    API
+distill-gpt55.chat-history.v1                selected conversation             FastAPI / llama.cpp
+        │                                              │                               │
+        ├─ app load → validate + bound ───────────────▶│                               │
+        │                         system + saved valid messages + new prompt ────────▶ POST /v1/chat/completions
+        │                                              │◀──────────── SSE token stream ┘
+        │                                              ▼
+        └◀── save after completion ─── completed user/assistant messages
+```
+
+`use-chat.ts` creates an assistant placeholder in memory before opening the stream, then
+appends tokens to that one conversation. It disables selecting, creating and deleting
+conversations while busy, so stream tokens cannot be written to a newly selected thread.
+Persistence happens only after `busy` becomes false.
+
+The storage module validates the stored JSON shape and fails closed: malformed JSON,
+unexpected shape, unavailable storage and quota errors resolve to an empty/no-op store
+instead of breaking the chat. Before writing, it keeps the 30 most recently updated
+conversations and the last 100 non-empty, non-error messages in each. These limits bound
+browser storage only; the client currently sends all valid selected messages to the API.
+
+### Context boundary
+
+The API defaults to a 4096-token llama.cpp context (`MAX_CONTEXT_TOKENS`). The web UI
+does not tokenize, summarize, or truncate old history before constructing a request.
+Therefore a persisted conversation can be within its 100-message storage limit yet still
+exceed model context. This is an explicit local-demo trade-off, not a hidden guarantee of
+unbounded conversation. Start a new thread when context becomes too long; token-aware
+trimming/summarization would require a deliberate product and API decision.
 
 ### Contract
 `docs/openapi.yaml` is canonical, exported from the FastAPI app; CI fails if the
