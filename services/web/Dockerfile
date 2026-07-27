@@ -1,5 +1,5 @@
 # Build stage: compile the Vite bundle
-FROM node:22-alpine AS builder
+FROM node:26-alpine AS builder
 
 RUN corepack enable
 WORKDIR /build
