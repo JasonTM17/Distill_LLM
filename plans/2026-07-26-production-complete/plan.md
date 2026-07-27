@@ -17,7 +17,7 @@ source: skill
 ## Overview
 
 v0.4 shipped an honest held-out eval (PPL 6.93, 357 train / 38 test) but with known gaps:
-127+ prompts lost to unretried transient API errors (philosophy + health = 0 samples),
+134 prompts lost to unretried transient API errors (philosophy + health = 0 samples),
 mojibake in Vietnamese outputs, no validation split, no deployment artifacts.
 
 This plan finishes the project: refactor scripts into a tested `src/distill` package,

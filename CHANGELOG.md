@@ -28,7 +28,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 - Transient teacher API errors (quota/connection) no longer recorded as
-  permanent failures — the v0.4 run lost 127/530 prompts to this.
+  permanent failures — the v0.4 run lost 134/530 prompts to this.
 - Vietnamese teacher outputs no longer mojibake-corrupted (UTF-8 handling +
   replacement-character validation at the client).
 

@@ -9,7 +9,7 @@ effort: "M"
 
 ## Overview
 
-Root-level scripts (`gen_batch.py` etc.) lost 127/530 samples in v0.4 because transient
+Root-level scripts (`gen_batch.py` etc.) lost 134/530 samples in v0.4 because transient
 API errors were cached as permanent failures, and Vietnamese outputs were mojibake-corrupted.
 Replace with a tested `src/distill` package featuring a resilient teacher client.
 
