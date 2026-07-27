@@ -47,6 +47,8 @@ export function ChatComposer({ busy, disabled, onSend, onStop }: ChatComposerPro
       <div className="composer-row">
         <button
           type="button" className="ghost" title="Generation settings"
+          aria-label="Generation settings"
+          aria-expanded={showSettings}
           onClick={() => setShowSettings((value) => !value)}
         >
           ⚙

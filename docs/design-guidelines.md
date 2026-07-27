@@ -2,9 +2,9 @@
 
 ## Scope, honestly
 
-The UI surface of this project is **one view**: a single streaming chat page in
-`services/web`. There is no design system here, no component library, no theming
-layer, and no route hierarchy — because there is nothing to apply them to.
+The UI surface of this project is **one view**: a streaming chat page with
+browser-local conversation history in `services/web`. There is no component
+library, theming layer, or route hierarchy.
 
 This document records what actually governs that one view, so changes stay
 consistent with it. It does not invent guidelines the code does not follow. If the
@@ -46,23 +46,25 @@ Conventions that are consistent across the sheet and worth preserving:
   for the empty-state title, `0.8`–`0.88rem` for secondary text. Body line-height `1.55`.
 - **Spacing**: multiples of 2px, mostly 4/6/8/10/12/14/16/20/24.
 - **Fonts**: system UI stack for prose; `'Cascadia Code', Consolas, monospace` for code.
-- **Layout**: `.shell` is a flex column at `height: 100vh`, capped at `max-width: 860px`
-  and centred. Header and composer are fixed bands; `main` is the only scrolling region.
+- **Layout**: `.app-layout` holds a 240px history sidebar and a centred `.shell` flex
+  column. Header and composer are fixed bands; `main` is the only scrolling region.
 
 ## Component structure
 
-Five files, each with one job. Keep it that way — this is small enough that indirection
+Small components, each with one job. Keep it that way — this is small enough that indirection
 costs more than it saves.
 
 | File | Responsibility |
 |---|---|
 | `App.tsx` | The only view. Composes header, message list, composer; polls readiness; auto-scrolls. |
-| `hooks/use-chat.ts` | All conversation state and stream orchestration. Components hold no chat state. |
+| `hooks/use-chat.ts` | Conversation state, local persistence, and stream orchestration. |
+| `chat-history.ts` | Validates, bounds, and persists browser-local conversation data. |
+| `components/chat-history-sidebar.tsx` | Presentational create/select/delete history navigation. |
 | `components/chat-composer.tsx` | Input, send/stop, and the collapsible generation settings. |
 | `components/message-bubble.tsx` | Renders one message. Owns the user-vs-assistant rendering split. |
 | `api/client.ts` + `api/sse.ts` | Transport. No UI concerns. |
 
-The state rule: `use-chat` owns `messages`, `busy`, and the `AbortController`.
+The state rule: `use-chat` owns conversations, selected messages, `busy`, and the `AbortController`.
 Components receive values and callbacks as props and stay presentational. New UI state
 that is genuinely local (the settings toggle, the draft text) stays in the component.
 
@@ -106,6 +108,16 @@ the history sent on the next turn, so one failure does not poison the conversati
 There is no toast layer and no global error boundary — errors belong to the message
 that caused them.
 
+### Local conversation history
+
+The sidebar creates, selects, and deletes browser-local conversations. The first
+user prompt becomes a compact title. While generation is active, history navigation
+is disabled so streamed tokens cannot be written into a different conversation.
+
+Persistence is intentionally local-only: no authentication, sync, export, or
+server-side history exists. At most 30 conversations and 100 completed messages per
+conversation are stored. Incomplete and failed assistant messages are excluded.
+
 ### Empty state
 
 Before the first message, `main` shows a centred title and a one-line hint about what
@@ -143,27 +155,22 @@ Present:
 - `<html lang="en">`, viewport meta, descriptive `<title>`.
 - Semantic `header` / `main` / `form` landmarks.
 - The typing indicator carries `aria-label="assistant is typing"`.
-- The settings toggle has a `title`.
-- Focus ring on the textarea (`outline: 1px solid var(--accent)`).
+- History navigation uses labelled `aside` and `nav` landmarks; its selected item
+  exposes `aria-current` and delete buttons have explicit names.
+- The message list is a polite live region for streamed output.
+- The settings toggle has an accessible name and `aria-expanded`.
+- Controls have visible `:focus-visible` rings.
 - Disabled controls use the real `disabled` attribute, not just styling.
 - Enter submits, Shift+Enter inserts a newline.
+- Motion-sensitive users get reduced animation and non-smooth scrolling.
 
-Known gaps — fix these if a11y work is picked up:
-
-- No live region on the message list, so screen readers are not told about streamed
-  tokens arriving.
-- The `⚙` toggle has a `title` but no `aria-label` or `aria-expanded`.
-- Buttons rely on the default focus ring; there is no `:focus-visible` styling.
-- No `prefers-reduced-motion` handling for the pulsing dot and typing animations.
-- Status colour is reinforced by a text label, which is good; the dot alone is not
-  distinguishable.
+Status colour is reinforced by a text label; the dot alone is not the status signal.
 
 ## Responsiveness
 
-There are no media queries. The layout is a centred flex column with a `max-width`
-and percentage-width bubbles (78%), which degrades acceptably on narrow screens but
-has not been designed or tested for mobile. Treat mobile as unverified rather than
-supported.
+At 720px and below, the layout becomes vertical: history becomes a horizontally
+scrollable strip, the content shell accounts for it, headers stack safely, settings
+wrap, and message bubbles expand to 92%. Desktop retains the 240px sidebar.
 
 ## When adding UI
 
