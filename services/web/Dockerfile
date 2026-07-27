@@ -11,7 +11,7 @@ ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
 RUN pnpm build
 
 # Runtime stage: static files behind nginx, non-root
-FROM nginxinc/nginx-unprivileged:1.27-alpine
+FROM nginxinc/nginx-unprivileged:1.31-alpine
 
 ARG REVISION=unknown
 LABEL org.opencontainers.image.source="https://github.com/JasonTM17/distill-gpt55" \
