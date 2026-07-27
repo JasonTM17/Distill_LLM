@@ -57,7 +57,7 @@ export default function App() {
           <div className="empty-state">
             <p className="empty-title">Chat with a 1.5B model distilled on this machine</p>
             <p className="empty-hint">
-              Trained via QLoRA on GPT-5.5-xhigh outputs · strongest at math, coding, science
+              LoRA fine-tuned in bf16 on GPT-5.5-xhigh outputs · strongest at math and coding
             </p>
           </div>
         ) : (

@@ -63,3 +63,7 @@ CLAUDE.md
 /draft*.md
 *.private.md
 *.local.md
+
+# Test + tooling artifacts
+.coverage
+.playwright-mcp/
