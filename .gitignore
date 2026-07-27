@@ -26,6 +26,7 @@ logs/
 # Node
 node_modules/
 services/web/dist/
+*.tsbuildinfo
 
 # IDE
 .idea/
