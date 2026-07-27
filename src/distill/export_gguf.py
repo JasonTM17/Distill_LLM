@@ -31,7 +31,9 @@ logger = get_logger("export-gguf")
 LLAMACPP_BIN = Path(os.environ.get("LLAMACPP_BIN", "D:/tools/llama-cpp-b10107"))
 LLAMACPP_SRC = Path(os.environ.get("LLAMACPP_SRC", "D:/tools/llama.cpp-src"))
 
-MODEL_BASENAME = "distill-gpt55-v0.5"
+# Env-overridable so a new training version does not silently overwrite the
+# previous version's GGUF files (which the deployment docs reference by name).
+MODEL_BASENAME = os.environ.get("GGUF_MODEL_BASENAME", "distill-gpt55-v0.5")
 DEFAULT_QUANTS = ("Q4_K_M", "Q5_K_M")
 
 
