@@ -1,110 +1,144 @@
-# Deployment Guide
+# Hướng dẫn triển khai
 
-## Prerequisites
+> **Ngôn ngữ:** **Tiếng Việt** · [English](deployment-guide.en.md)
 
-- A quantized model at `checkpoints/gguf/distill-gpt55-v0.5-Q4_K_M.gguf`
-  (produced by `python -m distill.export_gguf` after training + merge).
-- Docker Desktop (compose v2). No GPU required at serving time — the API runs
-  llama.cpp on CPU.
+## Điều kiện
 
-## Local (docker compose) — recommended
+- Docker Desktop với Compose v2.
+- Model `checkpoints/gguf/distill-gpt55-v0.5-Q4_K_M.gguf`.
+
+Model không được lưu trong Git và không nằm trong container image. Nếu chưa có
+artifact, cần chạy pipeline train → merge → `python -m distill.export_gguf`.
+Serving dùng llama.cpp trên CPU; không cần GPU hay 9Router.
+
+## Chạy bằng Docker Compose
+
+### Dùng image đã phát hành
+
+`docker-compose.yml` trỏ tới Docker Hub:
+
+```bash
+docker compose pull
+docker compose up --no-build
+```
+
+### Build từ source
 
 ```bash
 docker compose up --build
-# web UI:  http://localhost:3000
-# API:     http://localhost:8000  (OpenAI-compatible)
 ```
 
-The GGUF is mounted read-only into the api container (`./checkpoints/gguf:/models`);
-it is never baked into an image. The web container waits for the api healthcheck
-(`/readyz`) before starting.
+Web mở tại http://localhost:3000; API mở tại http://localhost:8000. Thư mục
+`./checkpoints/gguf` được mount read-only vào `/models`; model không bị đóng gói
+vào image.
 
-### Startup states
+## Trạng thái khởi động
 
-`/healthz` and `/readyz` answer different operational questions:
-
-| Endpoint | Meaning | Expected during cold start |
+| Endpoint/trạng thái | Ý nghĩa | Kết quả |
 |---|---|---|
-| `GET /healthz` | FastAPI process is alive | `200 {"status":"ok"}` |
-| `GET /readyz` | GGUF runtime can accept inference | `503` with `loading` until model load completes; then `200` with `ready` |
+| `GET /healthz` | Process FastAPI còn sống | `200 {"status":"ok"}` |
+| `/readyz`: `loading` | Runtime đang nạp GGUF | `503` |
+| `/readyz`: `ready` | Có thể nhận inference | `200` |
+| `/readyz`: `error` | Nạp model thất bại | `503` kèm `detail` |
 
-The web UI polls `/readyz` every five seconds and disables sending until it receives a
-successful response. A temporary `model loading` badge is expected after a restart.
-
-Smoke test:
+Healthcheck trong API image dùng `/healthz`, nên container chạy độc lập có thể
+được đánh dấu healthy khi model vẫn đang nạp. Compose override healthcheck bằng
+`/readyz`; web chỉ khởi động sau khi API sẵn sàng.
 
 ```bash
+docker compose logs api
 curl http://localhost:8000/readyz
 curl http://localhost:8000/v1/chat/completions -H "Content-Type: application/json" \
   -d '{"messages":[{"role":"user","content":"What is 2+2?"}]}'
 ```
 
-## Local (no Docker)
+## Registry và tag
 
-```bash
-# API
-cd services/api && pip install -r requirements-dev.txt
-MODEL_PATH=../../checkpoints/gguf/distill-gpt55-v0.5-Q4_K_M.gguf uvicorn app.main:app --port 8000
+Mỗi push lên `master` publish hai image với tag `latest` và SHA đầy đủ của
+commit:
 
-# Web
-cd services/web && pnpm install && pnpm dev   # http://localhost:3000
-```
-
-Any OpenAI SDK also works directly against the API
-(`base_url="http://localhost:8000/v1"`, any api_key).
-
-### Local frontend origin
-
-The Vite app uses `VITE_API_BASE_URL`, defaulting to `http://localhost:8000`. This is a
-build-time value, not a runtime API setting. If the API runs on another origin, set the
-value before `pnpm dev` or the production build and add the web origin to the API's
-comma-separated `CORS_ALLOW_ORIGINS` list.
-
-## Ollama / llama.cpp direct
-
-The GGUF is standard; it can be served without this repo's stack:
-
-```bash
-llama-server -m checkpoints/gguf/distill-gpt55-v0.5-Q4_K_M.gguf --port 8080
-```
-
-## Images / CI
-
-- CI (`.github/workflows/ci.yml`): ruff + pytest (package and api) + vitest +
-  contract-drift check + web build, on every push/PR.
-- Publishing (`.github/workflows/docker-publish.yml`): on push to `master`,
-  builds and pushes `nguyenson1710/distill-gpt55-api` and
-  `nguyenson1710/distill-gpt55-web` with `latest` + commit-SHA tags.
-  Requires repo secrets `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN`
-  (Settings → Secrets and variables → Actions).
-
-## Environment variables
-
-See per-service READMEs: [`services/api/README.md`](../services/api/README.md),
-[`services/web/README.md`](../services/web/README.md). Training-side settings:
-`.env.example` at the repo root.
-
-## Resource expectations
-
-| Component | RAM | Notes |
+| Registry | API | Web |
 |---|---|---|
-| api (Q4_K_M 1.5B) | ~1.5-2GB | CPU inference, ~10-25 tok/s on a modern laptop |
-| web | ~30MB | static nginx |
+| GHCR (luôn publish) | `ghcr.io/jasontm17/distill-gpt55-api` | `ghcr.io/jasontm17/distill-gpt55-web` |
+| Docker Hub mirror | `nguyenson1710/distill-gpt55-api` | `nguyenson1710/distill-gpt55-web` |
 
-## Browser-local chat history
+GHCR dùng `GITHUB_TOKEN`. Docker Hub chỉ chạy khi repository có
+`DOCKERHUB_USERNAME` và `DOCKERHUB_TOKEN`.
 
-The web UI stores history on the user's browser, not in either container. Docker volume
-backups, API logs, image rollback and API restarts do **not** preserve or restore chat
-history. The client stores at most 30 conversations and 100 completed messages per
-conversation in the current browser profile's localStorage. Clearing site data, using a
-different profile or using a browser that blocks localStorage removes/avoids that history.
+Pull trực tiếp từ GHCR:
 
-For a shared or sensitive deployment, do not assume this local-only behavior meets data
-retention, export, audit or recovery requirements. Those features are absent and need a
-separate authenticated persistence design.
+```bash
+docker pull ghcr.io/jasontm17/distill-gpt55-api:latest
+docker pull ghcr.io/jasontm17/distill-gpt55-web:latest
+```
+
+Compose mặc định dùng tên Docker Hub. Muốn chạy GHCR với Compose, đổi hai trường
+`image:` sang tên GHCR hoặc dùng một Compose override riêng.
+
+## CI
+
+- `.github/workflows/ci.yml`: chạy trên mọi pull request và push vào `master`;
+  gồm Ruff, pytest core/API, kiểm tra generated client, Vitest và web build.
+- `.github/workflows/docker-publish.yml`: build/publish API và web khi push vào
+  `master`.
+
+## Chạy không dùng Docker
+
+### API — PowerShell
+
+```powershell
+cd services/api
+pip install -r requirements-dev.txt
+$env:MODEL_PATH='../../checkpoints/gguf/distill-gpt55-v0.5-Q4_K_M.gguf'
+uvicorn app.main:app --port 8000
+```
+
+### API — Bash
+
+```bash
+cd services/api
+pip install -r requirements-dev.txt
+MODEL_PATH=../../checkpoints/gguf/distill-gpt55-v0.5-Q4_K_M.gguf \
+  uvicorn app.main:app --port 8000
+```
+
+### Web
+
+```bash
+cd services/web
+pnpm install
+pnpm dev
+```
+
+`VITE_API_BASE_URL` là biến build-time, mặc định `http://localhost:8000`. Nếu
+web và API khác origin, đặt biến này trước khi build/dev và thêm origin của web
+vào `CORS_ALLOW_ORIGINS`.
+
+OpenAI SDK có hỗ trợ custom base URL có thể gọi `chat.completions`. API chỉ
+triển khai một phần contract OpenAI; không có `/v1/models`, embeddings hoặc
+authentication, và API key truyền vào không được kiểm tra.
+
+## Dữ liệu chat
+
+History chỉ nằm trong `localStorage` của browser: tối đa 30 conversation và 100
+message không rỗng, không lỗi mỗi conversation. Output dừng giữa chừng vẫn được
+lưu. Container restart, volume backup và image rollback không khôi phục history.
 
 ## Rollback
 
-Images are tagged by commit SHA — pin a previous SHA in `docker-compose.yml`
-(or `docker run`) to roll back. Model rollback = point `MODEL_PATH` at an older
-GGUF file.
+Đổi tag image từ `latest` sang SHA đã biết, sau đó chạy:
+
+```bash
+docker compose pull
+docker compose up --no-build
+```
+
+Không dùng `--build` khi rollback image vì build local sẽ tạo image mới. Rollback
+model là đổi `MODEL_PATH` hoặc file mount sang GGUF đã xác minh trước đó.
+
+## Tham chiếu
+
+- [API runbook](../services/api/README.md)
+- [Frontend guide](../services/web/README.md)
+- [Kiến trúc hệ thống](system-architecture.md)
+- [Security policy](../SECURITY.md)

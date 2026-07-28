@@ -2,11 +2,13 @@
 
 ## Supported versions
 
-| Version | Supported | Notes |
-|---------|-----------|-------|
-| v0.5 | ✅ | Canonical served model (GGUF Q4_K_M) |
-| v0.6 | ⚠️ | Experiment, not shipped — docs only |
-| < v0.5 | ❌ | Superseded |
+| Scope | Supported | Notes |
+|---|---|---|
+| Repository/software v0.7.x | ✅ | Current code and documentation line |
+| Canonical model v0.5 | ✅ | Default served GGUF Q4_K_M |
+| Experimental model v0.7 | ⚠️ | Exported locally, not promoted to serving |
+| Experimental model v0.6 | ⚠️ | Evaluation only; no GGUF published |
+| Repository/software < v0.5 | ❌ | Superseded |
 
 ## Reporting a vulnerability
 

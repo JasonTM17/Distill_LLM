@@ -1,5 +1,9 @@
 # distill-gpt55
 
+[![CI](https://github.com/JasonTM17/Distill_LLM/actions/workflows/ci.yml/badge.svg)](https://github.com/JasonTM17/Distill_LLM/actions/workflows/ci.yml)
+[![Containers](https://github.com/JasonTM17/Distill_LLM/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/JasonTM17/Distill_LLM/actions/workflows/docker-publish.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 > Chưng cất GPT-5.5-xhigh qua 9Router thành Qwen2.5-1.5B-Instruct, huấn luyện cục bộ trên RTX 3060 6GB, rồi phục vụ qua API tương thích OpenAI và web chat streaming.
 
 > **Ngôn ngữ:** **Tiếng Việt** ([README.md](README.md)) · [English](README.en.md)
@@ -18,6 +22,8 @@
 - [Pipeline huấn luyện](#pipeline-huấn-luyện)
 - [Kiểm thử](#kiểm-thử)
 - [Tài liệu chi tiết](#tài-liệu-chi-tiết)
+- [Container đã phát hành](#container-đã-phát-hành)
+- [Cộng đồng và bảo mật](#cộng-đồng-và-bảo-mật)
 
 ## Dự án này làm gì?
 
@@ -118,14 +124,25 @@ Chi tiết thành phần, contract và data flow: [`docs/system-architecture.md`
 
 ### Khởi động
 
+Chạy bằng image đã phát hành trên Docker Hub:
+
+```bash
+docker compose pull
+docker compose up --no-build
+```
+
+Hoặc build trực tiếp từ source:
+
 ```bash
 docker compose up --build
 ```
 
+Các image không chứa model. File GGUF vẫn phải có tại đường dẫn nêu trên.
+
 | Dịch vụ | URL | Ghi chú |
 |---|---|---|
 | Web chat | http://localhost:3000 | Chỉ khởi động sau khi API ready |
-| API | http://localhost:8000 | OpenAI-compatible |
+| API | http://localhost:8000 | OpenAI-compatible chat-completions subset |
 | Readiness | http://localhost:8000/readyz | `503` trong lúc GGUF đang load |
 | Liveness | http://localhost:8000/healthz | Process còn sống |
 
@@ -156,9 +173,9 @@ History chỉ lưu trong `localStorage` của **browser profile hiện tại**, 
 
 | Hành vi | Thực tế |
 |---|---|
-| Giới hạn | 30 conversations gần nhất; 100 completed messages/conversation |
+| Giới hạn | 30 conversations gần nhất; 100 message không rỗng, không lỗi/conversation |
 | Tiêu đề | Tạo từ user prompt đầu tiên, gọn tối đa 48 ký tự |
-| Dữ liệu không lưu | Assistant response rỗng, lỗi hoặc chưa hoàn tất |
+| Dữ liệu không lưu | Assistant response rỗng hoặc lỗi; output dừng giữa chừng vẫn được giữ |
 | Khi storage lỗi/đầy | Chat hiện tại vẫn dùng được trong RAM; persistence bị bỏ qua |
 | Sync / account / export / recovery | **Không có** |
 | Khi xóa site data hoặc đổi browser/profile | History biến mất khỏi browser đó |
@@ -172,7 +189,7 @@ Chi tiết UX, accessibility và quy ước UI: [`docs/design-guidelines.md`](do
 > Cần Python environment phù hợp, 9Router cho generation/judge và RTX 3060 6GB cho training theo cấu hình v0.5.
 
 ```bash
-pip install -e .[train,dev]
+pip install -e .[train,dev] trl
 set PYTHONPATH=src
 
 python -m distill.download_student
@@ -217,6 +234,22 @@ pnpm build
 | [`services/api/README.md`](services/api/README.md) | API endpoints, config và runbook |
 | [`services/web/README.md`](services/web/README.md) | Web setup, history behaviour và frontend troubleshooting |
 
+## Container đã phát hành
+
+| Registry | API | Web |
+|---|---|---|
+| Docker Hub | [`nguyenson1710/distill-gpt55-api`](https://hub.docker.com/r/nguyenson1710/distill-gpt55-api) | [`nguyenson1710/distill-gpt55-web`](https://hub.docker.com/r/nguyenson1710/distill-gpt55-web) |
+| GitHub Packages | [`ghcr.io/jasontm17/distill-gpt55-api`](https://github.com/users/JasonTM17/packages/container/package/distill-gpt55-api) | [`ghcr.io/jasontm17/distill-gpt55-web`](https://github.com/users/JasonTM17/packages/container/package/distill-gpt55-web) |
+
+Mỗi image có tag `latest` và tag bằng SHA đầy đủ của commit để rollback chính xác.
+
+## Cộng đồng và bảo mật
+
+- Đóng góp: [`CONTRIBUTING.md`](CONTRIBUTING.md)
+- Báo cáo lỗ hổng riêng tư: [`SECURITY.md`](SECURITY.md)
+- Lịch sử phát hành: [`CHANGELOG.md`](CHANGELOG.md)
+- Giấy phép: [MIT](LICENSE)
+
 ## Repo layout
 
 ```text
@@ -232,7 +265,9 @@ plans/             ClaudeKit plans và evaluation reports
 ## Known constraints
 
 - **6GB VRAM:** v0.5 dùng bf16 LoRA + gradient checkpointing; sequence length training bị giới hạn 512.
-- **Python 3.14:** cần torch nightly CUDA; load model CPU-first rồi mới đưa sang GPU để tránh crash đã biết.
+- **Windows GPU profile trên Python 3.14:** cần bản PyTorch CUDA tương thích;
+  cấu hình đã kiểm chứng dùng torch nightly và load CPU-first trước khi đưa model
+  sang GPU.
 - **9Router:** chỉ cần cho sinh dataset/judge, không cần khi serving.
 - **Local deployment:** API serialize generation vì llama.cpp context không thread-safe; không phải multi-user scale-out service.
 

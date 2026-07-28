@@ -1,15 +1,15 @@
 # Documentation index
 
-This project's documentation is **bilingual**: every document has a Vietnamese
-source and an English translation. The Vietnamese file is the canonical one
-(existing links across the repo point at it); the English file mirrors it with
-an `.en.md` suffix.
+The user-facing entry points are bilingual. Unsuffixed filenames remain the
+stable canonical paths used by existing links; `.en.md` files are explicit
+English entry points.
 
-> **Ngôn ngữ / Languages:** Tiếng Việt (canonical) · English
+> **Ngôn ngữ / Languages:** xem trạng thái từng tài liệu bên dưới / see the
+> per-document coverage below.
 
 ## Documents
 
-| Document | Tiếng Việt (canonical) | English |
+| Document | Canonical path | English path |
 |---|---|---|
 | Project overview & PDR | [project-overview-pdr.md](project-overview-pdr.md) | [project-overview-pdr.en.md](project-overview-pdr.en.md) |
 | System architecture | [system-architecture.md](system-architecture.md) | [system-architecture.en.md](system-architecture.en.md) |
@@ -20,13 +20,21 @@ an `.en.md` suffix.
 | Project roadmap | [project-roadmap.md](project-roadmap.md) | [project-roadmap.en.md](project-roadmap.en.md) |
 | API contract (OpenAPI) | [openapi.yaml](openapi.yaml) | — (machine-readable) |
 
+## Language coverage
+
+- `README`, project overview, deployment guide, and roadmap have dedicated
+  Vietnamese and English content.
+- Architecture, codebase, standards, and design references are currently
+  English-first technical documents. Their `.en.md` mirrors are retained for
+  stable language-specific links.
+- `openapi.yaml` is machine-readable and language-neutral.
+
 ## Convention
 
-- The Vietnamese files keep their original names so every existing link in the
-  repo (`README.md`, `CHANGELOG.md`, code comments, plan files) stays valid.
-- The English files are plain translations: same structure, same figures, same
-  code blocks. When the Vietnamese source is updated, update the English mirror
-  in the same commit.
+- Unsuffixed files keep their original names so links from `README.md`,
+  `CHANGELOG.md`, code comments, and plans stay valid.
+- When a dedicated English mirror exists, keep its commands, figures, and
+  factual claims synchronized with the canonical path in the same commit.
 - Community files (`CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md`) and
   GitHub issue/PR templates are intentionally English-only: they follow the
   global GitHub convention so contributors and security reporters are not forced

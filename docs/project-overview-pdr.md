@@ -4,7 +4,10 @@
 
 ## Product
 
-Chưng cất mô hình (knowledge distillation) từ GPT-5.5-xhigh sang Qwen2.5-1.5B, giúp chạy local trên GPU RTX 3060 6GB với chất lượng tiệm cận teacher.
+Fine-tune có giám sát Qwen2.5-1.5B từ output của GPT-5.5-xhigh để chạy local
+trên RTX 3060 6GB. Chất lượng được đo bằng held-out perplexity và các metric
+single-reference; chưa có LLM-as-judge nên chưa thể khẳng định ngang hoặc tiệm
+cận teacher.
 
 ## Core Requirements
 
@@ -19,21 +22,22 @@ Chưng cất mô hình (knowledge distillation) từ GPT-5.5-xhigh sang Qwen2.5-
 | R7 | Expand dataset | ✅ 570 prompts (v0.5: 530; v0.6: +40 cho creative/vietnamese/reasoning) |
 | R8 | Train student lớn hơn (3B) khi đủ VRAM | 🔜 |
 | R9 | Support streaming generation | ✅ SSE streaming trong `services/api` |
-| R10 | Export model sang GGUF/ONNX | ✅ GGUF Q4_K_M + Q5_K_M; ONNX chưa làm |
+| R10a | Export model sang GGUF | ✅ Q4_K_M + Q5_K_M |
+| R10b | Export model sang ONNX | 🔜 Chưa triển khai |
 
 ## Success Metrics
 
 | Metric | Target | Current |
 |--------|--------|---------|
 | Dataset size | ≥ 530 prompts | 570 sinh / 568 qua quality gate (v0.6); v0.5: 530/528; 10/10 categories |
-| Training loss (3 epoch) | < 1.5 | 1.3785 |
-| Validation loss (best) | — | 1.4092 (checkpoint-125) |
+| Training loss v0.5 (3 epoch) | < 1.5 | 1.3785 |
+| Validation loss v0.5 (best) | — | 1.4092 (checkpoint-125) |
 | Token accuracy | > 65% | không đo ở v0.5 (v0.4: 65.3%) — v0.5 đo ROUGE-L / token-F1, là metric khác |
-| **Perplexity (held-out)** | < 10 | v0.5 **5.23** @cap 2048 (canonical) · v0.6 5.85 @cap 2048 (lùi) · v0.7 **5.81** @cap 2048 (thắng v0.6 cùng split, không phục hồi science/philosophy; root cause = dataset imbalance) · 5.38 @cap 512 |
+| **Perplexity (held-out)** | < 10 | v0.5 **5.23** @cap 2048, coverage 100% (canonical) · v0.6 5.85, coverage 95.4% · v0.7 **5.81**, coverage 95.4% (thắng v0.6 cùng split; kết quả ủng hộ giả thuyết mất cân bằng dữ liệu, không chứng minh quan hệ nhân quả) · v0.5 5.38 @cap 512 |
 | VRAM (train) | < 6GB | ~5GB |
-| VRAM (inference) | < 3.5GB | ~3.5GB |
+| Serving runtime | Chạy được không GPU | ✅ llama.cpp CPU; RAM/latency phụ thuộc host |
 | Held-out test samples | ≥ 30 | v0.5: 51 (426/51/51) · v0.6: 54 (460/54/54) |
-| Response quality | Clean code, accurate | ✅ |
+| Response quality | Held-out metrics + judge | PPL/ROUGE/token-F1 đã đo; LLM-as-judge và benchmark độc lập còn thiếu |
 
 ## Tech Stack
 
@@ -49,7 +53,8 @@ Chưng cất mô hình (knowledge distillation) từ GPT-5.5-xhigh sang Qwen2.5-
 
 - **VRAM:** 6GB tối đa → v0.5 train LoRA bf16 + gradient checkpointing. QLoRA
   4-bit là hướng dự kiến để nới trần này, chưa chạy được trong env hiện tại
-- **Ổ D:** 24GB trống → model + dataset vừa
+- **Disk:** cần theo dõi headroom trước train/export; không coi dung lượng trống
+  của một máy tại một thời điểm là yêu cầu sản phẩm
 - **API:** 9Router localhost, cần chạy nền
 - **Python 3.14:** chưa có stable CUDA torch → phải dùng nightly
 
@@ -60,4 +65,4 @@ Chưng cất mô hình (knowledge distillation) từ GPT-5.5-xhigh sang Qwen2.5-
 | Teacher API rate limit | Medium | Low | Delay 1.5s, retry 3 lần |
 | OOM khi train | High | High | Giảm batch → 1, seq → 512, dùng 1.5B |
 | bitsandbytes 4-bit lỗi trong env này | ⚠️ Đã xảy ra | Medium | v0.5 train LoRA trên base bf16 + gradient checkpointing. Đường thoát: quay lại QLoRA khi bnb chạy được (nhánh `LOAD_IN_4BIT` vẫn còn) |
-| Ổ D full | Low | Medium | Monitoring, xóa cache |
+| Hết dung lượng khi train/export | Medium | Medium | Kiểm tra free space thủ công, dọn cache và giữ artifact theo version |

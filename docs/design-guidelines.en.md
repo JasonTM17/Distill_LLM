@@ -13,8 +13,9 @@ consistent with it. It does not invent guidelines the code does not follow. If t
 UI grows past a second view, this file should grow with it; until then, a short
 accurate page beats an aspirational one.
 
-Everything below is drawn from `services/web/src/styles.css`, `App.tsx`,
-`components/`, and `hooks/use-chat.ts`.
+Everything below is drawn from `services/web/index.html`,
+`services/web/src/styles.css`, `App.tsx`, `components/`, and
+`hooks/use-chat.ts`.
 
 ## Visual language
 
@@ -23,9 +24,9 @@ content, and the chrome stays out of its way.
 
 ### Tokens
 
-All colour lives in CSS custom properties on `:root` in `styles.css`. There are no
-other colour sources — no inline styles, no per-component palettes. Use these names,
-never a raw hex value, in new CSS.
+The table below is the core palette in `:root`. A few legacy raw colours remain
+in `styles.css`; new CSS should use an existing token or introduce a named token
+instead of adding another raw value.
 
 | Token | Value | Used for |
 |---|---|---|
@@ -42,8 +43,9 @@ never a raw hex value, in new CSS.
 
 Conventions that are consistent across the sheet and worth preserving:
 
-- **Radii**: `10px` for interactive controls (buttons, textarea), `12px` for message
-  bubbles, `8px` for code blocks, `999px` for the status pill.
+- **Radii**: `7px` for compact conversation controls, `10px` for primary controls
+  (buttons, textarea), `12px` for message bubbles, `8px` for code blocks, and
+  `999px` for the status pill.
 - **Type scale**: sizes are in `rem` and stay small — `1.05rem` for the H1, `1.1rem`
   for the empty-state title, `0.8`–`0.88rem` for secondary text. Body line-height `1.55`.
 - **Spacing**: multiples of 2px, mostly 4/6/8/10/12/14/16/20/24.
@@ -105,9 +107,9 @@ same gate rather than failing at request time.
 ### Errors
 
 Stream and request failures attach an `error` string to the message and render as a
-`⚠`-prefixed line in `--danger` inside the bubble. Errored messages are excluded from
-the history sent on the next turn, so one failure does not poison the conversation.
-There is no toast layer and no global error boundary — errors belong to the message
+`⚠`-prefixed line in `--danger` inside the bubble. The failed assistant message
+is excluded from the next request, but the originating user message remains.
+There is no toast layer or global error boundary — errors belong to the message
 that caused them.
 
 ### Local conversation history
@@ -116,8 +118,10 @@ The sidebar creates, selects, and deletes browser-local conversations. The first
 user prompt becomes a compact title. While generation is active, history navigation
 is disabled so streamed tokens cannot be written into a different conversation.
 Persistence is intentionally local-only: no authentication, sync, export, or
-server-side history exists. At most 30 conversations and 100 completed messages per
-conversation are stored. Incomplete and failed assistant messages are excluded.
+server-side history exists. At most 30 conversations and 100 non-empty,
+non-error messages per conversation are stored. A stopped partial assistant
+response has no error and is retained; empty or failed assistant messages are
+excluded.
 
 ### Empty state
 

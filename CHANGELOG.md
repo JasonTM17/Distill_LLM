@@ -5,7 +5,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
-_Nothing yet._
+### Added
+
+- Public API and web container images on GitHub Container Registry and Docker
+  Hub, tagged with `latest` and the full source commit SHA.
+
+### Changed
+
+- Container publishing now always targets GHCR and mirrors to Docker Hub when
+  repository credentials are configured.
+- CI pins the web package manager, installs the Python test dependencies it
+  imports, and keeps the established Ruff rule baseline explicit.
+- Vietnamese/English deployment, architecture, product, UI, contribution, and
+  security documentation was corrected against the shipped code and workflows.
 
 ## [0.7.0] - 2026-07-28
 

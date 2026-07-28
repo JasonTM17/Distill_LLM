@@ -1,112 +1,148 @@
 # Deployment Guide
 
-> **Language:** English translation. Canonical Vietnamese: [`deployment-guide.md`](deployment-guide.md)
+> **Language:** [Tiếng Việt](deployment-guide.md) · **English**
 
 ## Prerequisites
 
-- A quantized model at `checkpoints/gguf/distill-gpt55-v0.5-Q4_K_M.gguf`
-  (produced by `python -m distill.export_gguf` after training + merge).
-- Docker Desktop (compose v2). No GPU required at serving time — the API runs
-  llama.cpp on CPU.
+- Docker Desktop with Compose v2.
+- Model file `checkpoints/gguf/distill-gpt55-v0.5-Q4_K_M.gguf`.
 
-## Local (docker compose) — recommended
+The model is not tracked in Git and is not included in container images. If the
+artifact is unavailable, run the train → merge →
+`python -m distill.export_gguf` pipeline. Serving uses llama.cpp on CPU; it does
+not require a GPU or 9Router.
+
+## Docker Compose
+
+### Published images
+
+`docker-compose.yml` points to Docker Hub:
+
+```bash
+docker compose pull
+docker compose up --no-build
+```
+
+### Build from source
 
 ```bash
 docker compose up --build
-# web UI:  http://localhost:3000
-# API:     http://localhost:8000  (OpenAI-compatible)
 ```
 
-The GGUF is mounted read-only into the api container (`./checkpoints/gguf:/models`);
-it is never baked into an image. The web container waits for the api healthcheck
-(`/readyz`) before starting.
+The web UI is available at http://localhost:3000 and the API at
+http://localhost:8000. `./checkpoints/gguf` is mounted read-only at `/models`;
+model weights are not baked into either image.
 
-### Startup states
+## Startup states
 
-`/healthz` and `/readyz` answer different operational questions:
-
-| Endpoint | Meaning | Expected during cold start |
+| Endpoint/state | Meaning | Result |
 |---|---|---|
 | `GET /healthz` | FastAPI process is alive | `200 {"status":"ok"}` |
-| `GET /readyz` | GGUF runtime can accept inference | `503` with `loading` until model load completes; then `200` with `ready` |
+| `/readyz`: `loading` | Runtime is loading the GGUF | `503` |
+| `/readyz`: `ready` | Inference can accept requests | `200` |
+| `/readyz`: `error` | Model loading failed | `503` with `detail` |
 
-The web UI polls `/readyz` every five seconds and disables sending until it receives a
-successful response. A temporary `model loading` badge is expected after a restart.
-
-Smoke test:
+The API image healthcheck uses `/healthz`, so a standalone container can be
+healthy while the model is still loading. Compose overrides it with `/readyz`;
+the web service starts only after the API is ready.
 
 ```bash
+docker compose logs api
 curl http://localhost:8000/readyz
 curl http://localhost:8000/v1/chat/completions -H "Content-Type: application/json" \
   -d '{"messages":[{"role":"user","content":"What is 2+2?"}]}'
 ```
 
-## Local (no Docker)
+## Registries and tags
 
-```bash
-# API
-cd services/api && pip install -r requirements-dev.txt
-MODEL_PATH=../../checkpoints/gguf/distill-gpt55-v0.5-Q4_K_M.gguf uvicorn app.main:app --port 8000
+Every push to `master` publishes both images with `latest` and the full commit
+SHA:
 
-# Web
-cd services/web && pnpm install && pnpm dev   # http://localhost:3000
-```
-
-Any OpenAI SDK also works directly against the API
-(`base_url="http://localhost:8000/v1"`, any api_key).
-
-### Local frontend origin
-
-The Vite app uses `VITE_API_BASE_URL`, defaulting to `http://localhost:8000`. This is a
-build-time value, not a runtime API setting. If the API runs on another origin, set the
-value before `pnpm dev` or the production build and add the web origin to the API's
-comma-separated `CORS_ALLOW_ORIGINS` list.
-
-## Ollama / llama.cpp direct
-
-The GGUF is standard; it can be served without this repo's stack:
-
-```bash
-llama-server -m checkpoints/gguf/distill-gpt55-v0.5-Q4_K_M.gguf --port 8080
-```
-
-## Images / CI
-
-- CI (`.github/workflows/ci.yml`): ruff + pytest (package and api) + vitest +
-  contract-drift check + web build, on every push/PR.
-- Publishing (`.github/workflows/docker-publish.yml`): on push to `master`,
-  builds and pushes `nguyenson1710/distill-gpt55-api` and
-  `nguyenson1710/distill-gpt55-web` with `latest` + commit-SHA tags.
-  Requires repo secrets `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN`
-  (Settings → Secrets and variables → Actions).
-
-## Environment variables
-
-See per-service READMEs: [`services/api/README.md`](../services/api/README.md),
-[`services/web/README.md`](../services/web/README.md). Training-side settings:
-`.env.example` at the repo root.
-
-## Resource expectations
-
-| Component | RAM | Notes |
+| Registry | API | Web |
 |---|---|---|
-| api (Q4_K_M 1.5B) | ~1.5-2GB | CPU inference, ~10-25 tok/s on a modern laptop |
-| web | ~30MB | static nginx |
+| GHCR (always) | `ghcr.io/jasontm17/distill-gpt55-api` | `ghcr.io/jasontm17/distill-gpt55-web` |
+| Docker Hub mirror | `nguyenson1710/distill-gpt55-api` | `nguyenson1710/distill-gpt55-web` |
 
-## Browser-local chat history
+GHCR uses `GITHUB_TOKEN`. The Docker Hub mirror runs only when
+`DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` are configured; both secrets are
+required for that mirror.
 
-The web UI stores history on the user's browser, not in either container. Docker volume
-backups, API logs, image rollback and API restarts do **not** preserve or restore chat
-history. The client stores at most 30 conversations and 100 completed messages per
-conversation in the current browser profile's localStorage. Clearing site data, using a
-different profile or using a browser that blocks localStorage removes/avoids that history.
+Direct GHCR pulls:
 
-For a shared or sensitive deployment, do not assume this local-only behavior meets data
-retention, export, audit or recovery requirements. Those features are absent and need a
-separate authenticated persistence design.
+```bash
+docker pull ghcr.io/jasontm17/distill-gpt55-api:latest
+docker pull ghcr.io/jasontm17/distill-gpt55-web:latest
+```
+
+Compose uses Docker Hub names by default. To run GHCR images through Compose,
+replace both `image:` values or use a dedicated Compose override.
+
+## CI
+
+- `.github/workflows/ci.yml`: runs on every pull request and every push to
+  `master`; covers Ruff, core/API pytest, generated-client verification, Vitest,
+  and the web build.
+- `.github/workflows/docker-publish.yml`: builds and publishes API and web images
+  on pushes to `master`.
+
+## Run without Docker
+
+### API — PowerShell
+
+```powershell
+cd services/api
+pip install -r requirements-dev.txt
+$env:MODEL_PATH='../../checkpoints/gguf/distill-gpt55-v0.5-Q4_K_M.gguf'
+uvicorn app.main:app --port 8000
+```
+
+### API — Bash
+
+```bash
+cd services/api
+pip install -r requirements-dev.txt
+MODEL_PATH=../../checkpoints/gguf/distill-gpt55-v0.5-Q4_K_M.gguf \
+  uvicorn app.main:app --port 8000
+```
+
+### Web
+
+```bash
+cd services/web
+pnpm install
+pnpm dev
+```
+
+`VITE_API_BASE_URL` is a build-time variable and defaults to
+`http://localhost:8000`. If web and API use different origins, set it before
+build/dev and add the web origin to `CORS_ALLOW_ORIGINS`.
+
+OpenAI SDK clients that support a custom base URL can call `chat.completions`.
+The API implements only a subset of the OpenAI contract: it has no `/v1/models`,
+embeddings, or authentication, and the supplied API key is not validated.
+
+## Chat data
+
+History stays in browser `localStorage`: at most 30 conversations and 100
+non-empty, non-error messages per conversation. Stopped partial output is saved.
+Container restarts, volume backups, and image rollbacks do not restore history.
 
 ## Rollback
 
-Images are tagged by commit SHA — pin a previous SHA in `docker-compose.yml`
-(or `docker run`) to roll back. Model rollback = point `MODEL_PATH` at an older
-GGUF file.
+Replace `latest` with a known commit-SHA tag, then run:
+
+```bash
+docker compose pull
+docker compose up --no-build
+```
+
+Do not use `--build` for an image rollback because a local build creates a new
+image. Model rollback means selecting a previously verified GGUF through the
+mount or `MODEL_PATH`.
+
+## References
+
+- [API runbook](../services/api/README.md)
+- [Frontend guide](../services/web/README.md)
+- [System architecture](system-architecture.en.md)
+- [Security policy](../SECURITY.md)

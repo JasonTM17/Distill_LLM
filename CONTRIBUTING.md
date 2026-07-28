@@ -6,13 +6,18 @@ Thanks for considering a contribution. This repo has two distinct parts — an
 
 ## Setup
 
-Offline training needs Python 3.14 + torch nightly CUDA and a CUDA GPU (developed
-on RTX 3060 6GB). Serving only needs Docker.
+The package supports Python 3.12+ and CI runs on Python 3.12. The documented
+Windows GPU training profile was developed with Python 3.14 and a compatible
+PyTorch nightly on an RTX 3060 6GB; choose the PyTorch build that matches your
+OS, Python, and CUDA versions. Serving only needs Docker.
 
 ```bash
-pip install -e .[train,dev]
+pip install -e .[train,dev] trl
 set PYTHONPATH=src
 ```
+
+`trl` is currently required directly by `src/distill/train.py` but is not yet
+declared in the `train` extra.
 
 Web client (generated from the committed OpenAPI contract):
 

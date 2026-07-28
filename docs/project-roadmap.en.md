@@ -4,12 +4,22 @@
 
 ## Current: v0.7 closeout (2026-07-28)
 
-v0.5 is the shipped/canonical model. v0.6 expanded weak categories → overall regressed. v0.7
-tried increasing capacity (LoRA r=32) on the same split → beat v0.6 (5.81 < 5.85) but
-did not recover science/philosophy → proving the root cause is dataset imbalance,
-not capacity. v0.5 remains canonical; v0.7 GGUF available locally. Next:
+v0.5 is the shipped/canonical model. v0.6 expanded weak categories and regressed
+overall. v0.7 increased adapter capacity (LoRA r=32) on the same split and beat
+v0.6 (5.81 < 5.85), but did not recover science/philosophy. This supports the
+data-imbalance hypothesis and shows that rank alone is insufficient; it does not
+establish causality. v0.5 remains canonical; v0.7 GGUF is available locally. Next:
 v0.8 rebalance catalogue + run judge. Plans: `plans/2026-07-26-production-complete/`,
 `plans/2026-07-27-v06-expand-and-retrain/`, `plans/2026-07-27-v07-capacity-retrain/`.
+
+## Version status
+
+| Scope | Version/status |
+|---|---|
+| Repository/changelog | v0.7.0 |
+| Default canonical served model | v0.5 Q4_K_M |
+| Local experimental artifacts | v0.6 (no GGUF), v0.7 (exported, not promoted) |
+| API software reports | 0.5.0 |
 
 ## Roadmap
 
@@ -18,12 +28,12 @@ v0.8 rebalance catalogue + run judge. Plans: `plans/2026-07-26-production-comple
 - [x] Known gaps: 134 prompts lost to unretried transient errors
   (philosophy + health = 0 samples), Vietnamese mojibake, no validation split
 
-### v0.5 — Production Complete (✅ 2026-07-26) — canonical served model
+### v0.5 — Canonical local-serving baseline (✅ 2026-07-26)
 - [x] `src/distill` package: resilient teacher client + resumable generation
 - [x] **530/530 prompts generated** — all 10 categories, zero mojibake
 - [x] Dataset quality gate + stratified 80/10/10 splits (426/51/51)
 - [x] Exact Qwen chat template with special tokens (v0.4 trained without them)
-- [x] Serving stack: FastAPI + llama.cpp container (validated end-to-end),
+- [x] Serving stack: FastAPI + llama.cpp container (API/web and images tested),
       Vite/React chat UI with generated API client, docker-compose, CI
 - [x] Retrain with validation + early stopping (bf16 LoRA — see phase-03
       incident log for the torch-nightly/safetensors/bnb crashes); merged weights
@@ -54,6 +64,7 @@ Plan: `plans/2026-07-27-v06-expand-and-retrain/`. Report:
 
 **Lesson:** a bare weak-category expansion lifts the targets but trades away
 strong categories and raises the (harder, regenerated) test-set headline.
+
 ### v0.7 — Capacity retrain (LoRA r=32) (⚠️ 2026-07-28, exported, not canonical)
 Plan: `plans/2026-07-27-v07-capacity-retrain/`. Report:
 `plans/reports/evaluation-v0.7.md`.
@@ -65,14 +76,14 @@ Plan: `plans/2026-07-27-v07-capacity-retrain/`. Report:
       7.01, reasoning 3.60, ml_ai 4.15, math 2.84
 - [x] GGUF Q4_K_M + Q5_K_M exported as `distill-gpt55-v0.7` + smoke-tested
       (llama-server health ok, reply correct)
-- [ ] `science` (6.02) and `philosophy` (6.22) did NOT recover → capacity was
-      not the root cause; the v0.6 dataset imbalance is
+- [ ] `science` (6.02) and `philosophy` (6.22) did not recover → increasing rank
+      was insufficient; the result supports the data-imbalance hypothesis
 - [ ] LLM-as-judge still not run (judge API unreachable again)
 - [ ] Not promoted to canonical/served — still above v0.5's 5.23 (different
       split, indicative only); v0.5 Q4_K_M stays served
 
-**Lesson:** doubling adapter capacity yields only marginal gains on a fixed,
-imbalanced dataset. The real lever is rebalancing the catalogue, not more rank.
+**Lesson:** doubling adapter rank produced only marginal gains on the fixed
+dataset. Rebalancing the catalogue is a better next experiment than adding rank.
 
 ### v0.8 — Rebalance + recovery + advanced distillation
 - [ ] Beat v0.5's 5.23: rebalance the catalogue (top up science/philosophy and
@@ -83,7 +94,7 @@ imbalanced dataset. The real lever is rebalancing the catalogue, not more rank.
       seq 1024 (dataset stores full-length samples)
 - [ ] Benchmark suite (GSM8K-mini, HumanEval-mini, MMLU subset)
 - [ ] True distillation with logit matching (requires open-weight teacher)
-- [ ] Qwen2.5-3B student (`D:/models/qwen25-3b` already downloaded, 5.76GB)
+- [ ] Qwen2.5-3B student when VRAM and disk headroom permit
 - [ ] Flash Attention 2 / Unsloth for faster training
 
 ### v1.0 — Production hardening
@@ -99,7 +110,7 @@ imbalanced dataset. The real lever is rebalancing the catalogue, not more rank.
 | bnb on-the-fly 4-bit broken in this env | QLoRA unavailable | LoRA on full bf16 behind `LOAD_IN_4BIT=false` |
 | API-only teacher (no logits) | SFT, not true KL distillation | accepted trade-off |
 | 9Router localhost only | generation needs local API up | resumable generation rides outages |
-| C: drive low space | Docker + pagefile pressure | GGUF/CPU serving images; prune builds; watch free space |
+| Low disk headroom | Docker + pagefile + artifact pressure | prune builds; check free space before train/export |
 
 ## Dependencies
 
@@ -108,5 +119,11 @@ imbalanced dataset. The real lever is rebalancing the catalogue, not more rank.
 | PyTorch | 2.12 nightly cu128 | required by Python 3.14; source of load crashes |
 | transformers | 5.14.1 | new core_model_loading path |
 | trl / peft | 1.9.0 / 0.19.1 | prompt-completion loss masking |
-| llama.cpp | b10107 | `D:/tools` binaries + source for GGUF |
+| llama.cpp | b10107 | binaries/source installed outside the repo for GGUF |
 | llama-cpp-python | 0.3.34 | serving runtime (CPU wheel works on 3.14) |
+
+## Governance
+
+- [Changelog](../CHANGELOG.md)
+- [Contributing](../CONTRIBUTING.md)
+- [Security policy](../SECURITY.md)

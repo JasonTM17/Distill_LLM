@@ -6,8 +6,11 @@
   root-level scripts are legacy and being retired.
 - Services are standalone under `services/<name>/` — the api service must not
   import from `src/distill` (keeps torch out of its Docker image).
-- Python: **snake_case** modules; ≤ 200 LOC per file — split when exceeding.
-- Non-Python files: **kebab-case**; docs as Markdown in `docs/`.
+- Python: **snake_case** modules. Treat 200 LOC as a review signal; split only
+  when it produces a real responsibility boundary.
+- Follow ecosystem conventions for non-Python files (`App.tsx`, `Dockerfile`,
+  `README.md`); use kebab-case for new project-owned files when no stronger
+  convention exists.
 - Imports at top, grouped: stdlib → third-party → local.
 
 ## Configuration
@@ -29,13 +32,15 @@
 - `python -m pytest tests/ -q` (package) and `services/api: python -m pytest tests/ -q`
   (fake runtime — no GPU/model needed); web: `pnpm test` + `pnpm build`.
 - `ruff check src/ tests/ services/api/` must be clean (CI gate).
-- API contract `docs/openapi.yaml` is generated from the FastAPI app; the web
-  client is generated from it (`pnpm run generate-client`) — CI fails on drift.
+- `docs/openapi.yaml` is the manually maintained frontend contract. The web
+  client is generated from it (`pnpm run generate-client`); CI checks YAML →
+  TypeScript drift, not FastAPI → YAML drift.
 
 ## Git workflow
 
-- **Conventional commits:** `feat:`, `fix:`, `docs:`, `test:`, `chore:`
-- **No AI refs** in commit messages; sole author Nguyen Tien Son.
+- **Conventional commits:** `feat:`, `fix:`, `ci:`, `build:`, `docs:`,
+  `refactor:`, `test:`, `chore:`
+- **No AI refs** in commit messages.
 - Focused commits; no secrets, no private notes, no model artifacts.
 
 ## Model training (RTX 3060 6GB — hard-won constraints)

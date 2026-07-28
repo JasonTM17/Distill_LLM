@@ -4,7 +4,10 @@
 
 ## Product
 
-Model distillation from GPT-5.5-xhigh to Qwen2.5-1.5B, enabling local execution on an RTX 3060 6GB GPU with quality approaching the teacher.
+Supervised fine-tuning of Qwen2.5-1.5B on GPT-5.5-xhigh outputs for local
+execution on an RTX 3060 6GB. Quality is measured with held-out perplexity and
+single-reference metrics; teacher parity is not established because
+LLM-as-judge has not run.
 
 ## Core Requirements
 
@@ -19,21 +22,22 @@ Model distillation from GPT-5.5-xhigh to Qwen2.5-1.5B, enabling local execution 
 | R7 | Expand dataset | ✅ 570 prompts (v0.5: 530; v0.6: +40 for creative/vietnamese/reasoning) |
 | R8 | Train a larger student (3B) when VRAM is sufficient | 🔜 |
 | R9 | Support streaming generation | ✅ SSE streaming in `services/api` |
-| R10 | Export model to GGUF/ONNX | ✅ GGUF Q4_K_M + Q5_K_M; ONNX not done yet |
+| R10a | Export model to GGUF | ✅ Q4_K_M + Q5_K_M |
+| R10b | Export model to ONNX | 🔜 Not implemented |
 
 ## Success Metrics
 
 | Metric | Target | Current |
 |--------|--------|---------|
 | Dataset size | ≥ 530 prompts | 570 generated / 568 passed quality gate (v0.6); v0.5: 530/528; 10/10 categories |
-| Training loss (3 epoch) | < 1.5 | 1.3785 |
-| Validation loss (best) | — | 1.4092 (checkpoint-125) |
+| Training loss v0.5 (3 epoch) | < 1.5 | 1.3785 |
+| Validation loss v0.5 (best) | — | 1.4092 (checkpoint-125) |
 | Token accuracy | > 65% | not measured at v0.5 (v0.4: 65.3%) — v0.5 measures ROUGE-L / token-F1, a different metric |
-| **Perplexity (held-out)** | < 10 | v0.5 **5.23** @cap 2048 (canonical) · v0.6 5.85 @cap 2048 (regression) · v0.7 **5.81** @cap 2048 (beats v0.6 on same split, does not recover science/philosophy; root cause = dataset imbalance) · 5.38 @cap 512 |
+| **Perplexity (held-out)** | < 10 | v0.5 **5.23** @cap 2048, 100% coverage (canonical) · v0.6 5.85, 95.4% coverage · v0.7 **5.81**, 95.4% coverage (beats v0.6 on the same split; supports the data-imbalance hypothesis but does not establish causality) · v0.5 5.38 @cap 512 |
 | VRAM (train) | < 6GB | ~5GB |
-| VRAM (inference) | < 3.5GB | ~3.5GB |
+| Serving runtime | Works without a GPU | ✅ llama.cpp CPU; RAM/latency depend on host |
 | Held-out test samples | ≥ 30 | v0.5: 51 (426/51/51) · v0.6: 54 (460/54/54) |
-| Response quality | Clean code, accurate | ✅ |
+| Response quality | Held-out metrics + judge | PPL/ROUGE/token-F1 measured; LLM-as-judge and independent benchmarks pending |
 
 ## Tech Stack
 
@@ -49,7 +53,8 @@ Model distillation from GPT-5.5-xhigh to Qwen2.5-1.5B, enabling local execution 
 
 - **VRAM:** 6GB maximum → v0.5 trains LoRA bf16 + gradient checkpointing. QLoRA
   4-bit is the intended direction to raise this ceiling, not yet runnable in the current env
-- **Drive D:** 24GB free → model + dataset fit
+- **Disk:** check headroom before training/export; a workstation's point-in-time
+  free-space value is not a product requirement
 - **API:** 9Router localhost, needs to run in the background
 - **Python 3.14:** no stable CUDA torch yet → must use nightly
 
@@ -60,4 +65,4 @@ Model distillation from GPT-5.5-xhigh to Qwen2.5-1.5B, enabling local execution 
 | Teacher API rate limit | Medium | Low | Delay 1.5s, retry 3 times |
 | OOM during training | High | High | Reduce batch → 1, seq → 512, use 1.5B |
 | bitsandbytes 4-bit errors in this env | ⚠️ Has occurred | Medium | v0.5 trains LoRA on base bf16 + gradient checkpointing. Escape path: return to QLoRA when bnb works (the `LOAD_IN_4BIT` branch is still present) |
-| Drive D full | Low | Medium | Monitoring, delete cache |
+| Disk exhaustion during train/export | Medium | Medium | Check free space manually, clean caches, retain versioned artifacts |

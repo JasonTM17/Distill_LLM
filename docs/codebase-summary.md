@@ -25,21 +25,22 @@ available in this repo.
 
 ## Repo map
 
-| Path | Files | ≈LOC | Owns |
-|---|---|---|---|
-| `src/distill/` | 15 | 1,539 | The whole offline pipeline, as an importable package |
-| `services/api/app/` | 9 | 418 | FastAPI service wrapping llama.cpp |
-| `services/web/src/api/` | 4 | 474 | Generated contract types + typed client + SSE parser |
-| `services/web/src/` | 4 | 218 | App shell, entrypoint, stylesheet |
-| `services/web/src/components/` | 3 | 146 | Chat composer, message bubble, their tests |
-| `services/web/src/hooks/` | 1 | 57 | `use-chat` — conversation state + streaming |
-| `tests/` | 4 | 396 | Pipeline unit tests (49 cases) |
-| `services/api/tests/` | 3 | 135 | Route tests against a fake runtime (12 cases) |
-| `docs/openapi.yaml` | 1 | 255 | The canonical API contract |
-| `.github/workflows/` | 2 | 74 | CI and image publish |
+| Path | Owns |
+|---|---|
+| `src/distill/` | Offline generation, dataset, training, merge, evaluation and export |
+| `services/api/app/` | FastAPI service wrapping llama.cpp |
+| `services/web/src/api/` | Generated contract types, typed client and SSE parser |
+| `services/web/src/components/` | Composer, message rendering and history sidebar |
+| `services/web/src/hooks/` | Conversation state, persistence and streaming |
+| `tests/` | Offline-pipeline unit tests |
+| `services/api/tests/` | API route tests against a fake runtime |
+| `services/web/src/**/*.test.*` | UI, transport and history tests |
+| `scripts/` | Version-specific training/evaluation and operational helpers |
+| `docs/openapi.yaml` | Manually maintained frontend API contract |
+| `.github/workflows/` | CI and multi-registry image publishing |
 
-Roughly 3,800 LOC of project code. Everything is small on purpose; if a module
-starts sprawling, that is a signal, not a milestone.
+Avoid hand-maintained LOC totals here; they become stale without adding an
+architectural guarantee.
 
 ## Offline pipeline — stages in order
 
@@ -64,7 +65,8 @@ prompt set. So this stage is built around never losing work —
 
 - writes are **atomic** (temp file + replace), so a kill mid-write cannot truncate the JSON
 - failures are recorded as records, not dropped, and are re-attempted on later runs
-- `--retry-failed`, `--limit`, and `--categories` let you target exactly what is missing
+- failures are retried by default; `--no-retry-failed` skips them, while
+  `--limit`, `--categories`, and `--delay` scope a run
 
 `teacher_client.py` is the piece that makes this safe. It classifies exceptions
 into retryable vs fatal, applies exponential backoff with jitter, and validates
@@ -102,7 +104,9 @@ Reads the train and validation splits, writes `checkpoints/adapter/`.
   only when `TRAIN_ON_COMPLETIONS_ONLY` is set.
 - Evaluates on the validation split, early-stops on `EARLY_STOPPING_PATIENCE`, and
   restores the best checkpoint.
-- The previous adapter is archived, not silently overwritten (`archive_previous_adapter`).
+- Training includes a one-time v0.4 adapter migration. Later adapters must be
+  backed up explicitly before retraining; `scripts/backup-v05.py` is the
+  existing v0.5 helper.
 
 Two loading paths exist, selected by `LOAD_IN_4BIT`: a bitsandbytes NF4 4-bit path
 and a plain bf16 path. Both request bf16 dtype. The v0.5 run used the bf16 path —
@@ -153,7 +157,7 @@ rather than reimplementing:
 
 | Module | Why it exists |
 |---|---|
-| `model_loading.py` | Every causal-LM load goes through here: bf16 dtype, CPU-first then move to CUDA, pre-touch first. The direct-to-device and fp16-at-load paths crash on this torch/safetensors combination. |
+| `model_loading.py` | Unquantized causal-LM loads use bf16, CPU-first then CUDA, and pre-touch. The 4-bit QLoRA branch in `train.py` is the explicit exception. |
 | `safetensors_pretouch.py` | Sequentially reads shards into the OS cache before mmap, so loads do not fault against a constrained Windows pagefile. Call `install()` before loading weights. |
 | `logging_utils.py` | Forces UTF-8 on stdout/stderr. The default Windows console codepage mangles UTF-8, which is how mojibake got into a dataset once already. |
 
@@ -300,7 +304,7 @@ publishes both images on pushes to master.
 |---|---|---|
 | Prompts | `data/prompts.json` | yes |
 | Raw teacher outputs | `data/raw/teacher_outputs.json` | no |
-| Splits + stats | `data/processed/` | yes |
+| Splits + stats | `data/processed/` | no |
 | LoRA adapter | `checkpoints/adapter/` | no |
 | Merged weights | `checkpoints/merged/` | no |
 | GGUF quantizations | `checkpoints/gguf/` | no |

@@ -61,8 +61,9 @@ for the bf16 path to fit in 6GB.
 - `/healthz`, `/readyz` (503 until GGUF loaded), `/metrics` (Prometheus)
 - llama-cpp-python CPU runtime, single-flight lock (llama ctx not thread-safe),
   background model load, per-IP sliding-window rate limit
-- Image: python:3.12-slim multi-stage, non-root 65532, HEALTHCHECK, ~sub-500MB;
-  GGUF mounted read-only at `/models` — never baked into the image
+- Runtime image: `python:3.14-slim` multi-stage, non-root 65532, HEALTHCHECK;
+  CI tests the Python package on Python 3.12. The GGUF is mounted read-only at
+  `/models` and is never baked into the image.
 
 ### web — React chat UI (`services/web`)
 - Vite + React + TS; API client **generated** from `docs/openapi.yaml`
@@ -110,8 +111,10 @@ unbounded conversation. Start a new thread when context becomes too long; token-
 trimming/summarization would require a deliberate product and API decision.
 
 ### Contract
-`docs/openapi.yaml` is canonical, exported from the FastAPI app; CI fails if the
-committed generated client drifts from it.
+`docs/openapi.yaml` is the manually maintained, committed frontend contract.
+The web generates `src/api/schema.d.ts` from it, and CI catches YAML →
+TypeScript drift. CI does not currently compare FastAPI's `app.openapi()` output
+with the YAML, so backend → YAML drift still requires manual review.
 
 ## Directory layout
 
@@ -125,14 +128,14 @@ distill-gpt55/
 ├── checkpoints/           ← adapter / merged / gguf artifacts (gitignored)
 ├── docs/                  ← this file, openapi.yaml, PDR, roadmap, standards
 ├── plans/                 ← ClaudeKit plans + evaluation reports
-├── docker-compose.yml     ← boots api + web with GGUF volume
-└── D:/models/qwen15-1.5b  ← base model cache (outside repo)
+└── docker-compose.yml     ← boots api + web with GGUF volume
 ```
 
 ## External dependencies
 
-- **9Router** (`localhost:20128`) — teacher + judge API; needed only for data
-  generation and judge evaluation, never at serving time.
-- **llama.cpp** (`D:/tools/llama-cpp-b10107` bin + `D:/tools/llama.cpp-src`) —
-  GGUF conversion/quantization tooling; paths via `LLAMACPP_BIN`/`LLAMACPP_SRC`.
-
+- **9Router** — teacher and judge API; its endpoint is configured through the
+  environment and it is not needed at serving time.
+- **llama.cpp** — GGUF conversion/quantization tools installed outside the repo;
+  paths are configured with `LLAMACPP_BIN`/`LLAMACPP_SRC`.
+- **Base model cache** — a separately configured local directory, not part of
+  the repository layout.
