@@ -16,7 +16,8 @@ RUN pip wheel --wheel-dir /wheels \
 FROM python:3.14-slim
 
 ARG REVISION=unknown
-LABEL org.opencontainers.image.source="https://github.com/JasonTM17/distill-gpt55" \
+LABEL org.opencontainers.image.source="https://github.com/JasonTM17/Distill_LLM" \
+      org.opencontainers.image.description="OpenAI-compatible API for the distill-gpt55 model" \
       org.opencontainers.image.licenses="MIT" \
       org.opencontainers.image.revision="${REVISION}"
 

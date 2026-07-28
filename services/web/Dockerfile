@@ -14,7 +14,8 @@ RUN pnpm build
 FROM nginxinc/nginx-unprivileged:1.31-alpine
 
 ARG REVISION=unknown
-LABEL org.opencontainers.image.source="https://github.com/JasonTM17/distill-gpt55" \
+LABEL org.opencontainers.image.source="https://github.com/JasonTM17/Distill_LLM" \
+      org.opencontainers.image.description="Streaming web chat interface for the distill-gpt55 model" \
       org.opencontainers.image.licenses="MIT" \
       org.opencontainers.image.revision="${REVISION}"
 

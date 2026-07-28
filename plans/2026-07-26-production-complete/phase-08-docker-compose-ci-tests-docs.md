@@ -28,7 +28,7 @@ GGUF model mounted as a volume, never baked into the image.
    `nguyenson1710/distill-gpt55-api` and `-web` (latest + SHA tags) on master push
    — requires DOCKERHUB_USERNAME / DOCKERHUB_TOKEN repo secrets.
 4. Repo hygiene: `.gitignore` covers checkpoints/, data/raw, logs/, .env*,
-   private dirs (.claude/, .codex/, .commandcode/ etc.); dependabot.yml;
+   private dirs (.claude/, .codex/ etc.); dependabot.yml;
    remove/deprecate superseded root scripts (gen_batch.py etc.) now that
    `src/distill` + services own the behavior.
 5. Docs sync: README (v0.5 results, new quick start incl. compose), CHANGELOG,

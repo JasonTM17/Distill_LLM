@@ -47,7 +47,6 @@ venv/
 # Assistant tooling & private dirs (never commit)
 .claude/
 .codex/
-.commandcode/
 .claude-private/
 .private/
 AGENTS.md
