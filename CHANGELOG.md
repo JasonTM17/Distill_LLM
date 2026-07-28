@@ -7,6 +7,36 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 _Nothing yet._
 
+## [0.7.0] - 2026-07-28
+
+### Added
+- v0.7 capacity retrain: same 570 dataset and 54-sample held-out split as v0.6,
+  but LoRA rank doubled (r=16 → r=32, alpha 32 → 64) to test whether more adapter
+  capacity recovers v0.6's regressions. Best val loss 1.4555 (v0.6: 1.4599).
+- Evaluation report v0.7, directly comparable to v0.6 (same split):
+  [`plans/reports/evaluation-v0.7.md`](plans/reports/evaluation-v0.7.md).
+- GGUF Q4_K_M (0.94 GB) + Q5_K_M (1.07 GB) exported as
+  `distill-gpt55-v0.7` and smoke-tested with `llama-server` (health ok, reply
+  correct). Available locally; not promoted to served/canonical.
+
+### Result (honest)
+- Overall held-out PPL @cap 2048 **5.81 < v0.6's 5.85** on the identical 54-sample
+  split — the primary target was met.
+- Still **above v0.5's 5.23** (different test split, 51 vs 54 samples —
+  indicative only, never differenced).
+- Target weak categories hit their best-ever values: creative 14.95→14.21→**14.11**,
+  vietnamese 8.35→7.02→**7.01**, reasoning 5.17→3.67→**3.60**, ml_ai
+  5.49→4.17→**4.15**, math 2.98→2.89→**2.84**.
+- `science` (4.81→6.06→**6.02**) and `philosophy` (5.26→6.22→**6.22**) did NOT
+  recover — capacity was not the root cause; the v0.6 dataset imbalance is.
+
+### Known issues (this version)
+- **LLM-as-judge still not run** (judge API unreachable again) — the third metric
+  remains missing across v0.5/v0.6/v0.7.
+- v0.7 is not the canonical served model; v0.5 Q4_K_M stays served (better
+  overall, on its own split). v0.8 should rebalance the catalogue (top up strong
+  categories too) rather than raise capacity.
+
 ## [0.6.0] - 2026-07-27
 
 ### Added
