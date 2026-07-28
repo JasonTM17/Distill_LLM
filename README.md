@@ -2,6 +2,8 @@
 
 > Chưng cất GPT-5.5-xhigh qua 9Router thành Qwen2.5-1.5B-Instruct, huấn luyện cục bộ trên RTX 3060 6GB, rồi phục vụ qua API tương thích OpenAI và web chat streaming.
 
+> **Ngôn ngữ:** **Tiếng Việt** ([README.md](README.md)) · [English](README.en.md)
+
 ![Giao diện chat streaming của model đã distill](docs/assets/chat-streaming.gif)
 
 <sub>Ảnh chụp thực tế: student 1.5B trả lời qua SSE từ llama.cpp chạy CPU, khoảng 1.4 token/giây; video được tăng tốc.</sub>
