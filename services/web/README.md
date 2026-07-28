@@ -64,6 +64,9 @@ the code provides none of those guarantees.
 
 ## Run locally
 
+Requires Node.js 22+ and pnpm 11.0.9 (Corepack reads the pinned version from
+`package.json`).
+
 ```bash
 cd services/web
 pnpm install

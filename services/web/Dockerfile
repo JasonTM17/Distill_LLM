@@ -1,7 +1,9 @@
 # Build stage: compile the Vite bundle
 FROM node:26-alpine AS builder
 
-RUN corepack enable
+# Node 25+ no longer bundles Corepack; install the supported userland package.
+RUN npm install --global corepack@0.35.0 \
+    && corepack enable
 WORKDIR /build
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile
