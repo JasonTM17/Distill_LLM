@@ -9,7 +9,7 @@
 ## Mục lục
 
 - [Dự án này làm gì?](#dự-án-này-làm-gì)
-- [Kết quả v0.5 & v0.6](#kết-quả-v05)
+- [Kết quả v0.5, v0.6 & v0.7](#kết-quả-v05)
 - [Kiến trúc](#kiến-trúc)
 - [Chạy nhanh bằng Docker](#chạy-nhanh-bằng-docker)
 - [Dùng web chat và lịch sử hội thoại](#dùng-web-chat-và-lịch-sử-hội-thoại)
@@ -68,7 +68,29 @@ headline **tệ hơn** — một phần do test split đổi (51→54 mẫu, nhi
 cao hơn), một phần do mở rộng chỉ category yếu làm loãng category mạnh. **Serving
 vẫn dùng v0.5 GGUF** (model tốt hơn overall). Báo cáo:
 [`plans/reports/evaluation-v0.6.md`](plans/reports/evaluation-v0.6.md). Bài học
-và kế hoạch v0.7: [`docs/project-roadmap.md`](docs/project-roadmap.md).
+và kế hoạch: [`docs/project-roadmap.md`](docs/project-roadmap.md).
+
+### v0.7 — tăng LoRA capacity (r=32), không canonical
+
+v0.7 thử **một biến đổi**: cùng 570 dataset, cùng 54-sample test split như v0.6,
+chỉ tăng LoRA rank (r=16→32) để xem capacity có phục hồi regression không.
+
+| Metric | v0.5 (canonical) | v0.6 | **v0.7** |
+|---|---:|---:|---:|
+| Overall held-out PPL @cap 2048 | 5.23 | 5.85 | **5.81** (thắng v0.6, cùng split ✓) |
+| `creative` PPL | 14.95 | 14.21 | **14.11** (tốt nhất) |
+| `vietnamese` PPL | 8.35 | 7.02 | **7.01** (tốt nhất) |
+| `reasoning` PPL | 5.17 | 3.67 | **3.60** (tốt nhất) |
+| `science` PPL | 4.81 | 6.06 | 6.02 (không phục hồi) |
+| `philosophy` PPL | 5.26 | 6.22 | 6.22 (không phục hồi) |
+| LLM-as-judge | chưa chạy | chưa chạy | chưa chạy |
+| GGUF export | Q4_K_M + Q5_K_M | chưa export | Q4_K_M + Q5_K_M (smoke-tested) |
+
+v0.7 **thắng v0.6 trên cùng split** (5.81 < 5.85) và đưa 5 category yếu/tốt lên
+**kỷ lục**, nhưng `science`/`philosophy` **không phục hồi** → chứng tỏ root cause
+là **dataset imbalance** (mở rộng chỉ category yếu), không phải capacity. v0.5
+vẫn canonical/served; v0.7 GGUF có sẵn `checkpoints/gguf/` cho ai muốn serve local.
+Báo cáo: [`plans/reports/evaluation-v0.7.md`](plans/reports/evaluation-v0.7.md).
 
 
 ## Kiến trúc

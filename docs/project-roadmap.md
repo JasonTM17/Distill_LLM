@@ -1,11 +1,13 @@
 # Project Roadmap
 
-## Current: v0.6 closeout (2026-07-27)
+## Current: v0.7 closeout (2026-07-28)
 
-v0.5 là model shipped/canonical. v0.6 mở rộng category yếu và retrain; cải thiện
-được mục tiêu nhưng lùi overall → đóng lại như thử nghiệm, không ship. Tiếp theo:
-v0.7 xử lý regression và chạy judge. Plans: `plans/2026-07-26-production-complete/`,
-`plans/2026-07-27-v06-expand-and-retrain/`.
+v0.5 là model shipped/canonical. v0.6 mở rộng category yếu → lùi overall. v0.7
+thử tăng capacité (LoRA r=32) trên cùng split → thắng v0.6 (5.81 < 5.85) nhưng
+không phục hồi science/philosophy → chứng tỏ root cause là dataset imbalance,
+không phải capacité. v0.5 vẫn canonical; v0.7 GGUF có sẵn local. Tiếp theo:
+v0.8 rebalance catalogue + chạy judge. Plans: `plans/2026-07-26-production-complete/`,
+`plans/2026-07-27-v06-expand-and-retrain/`, `plans/2026-07-27-v07-capacity-retrain/`.
 
 ## Roadmap
 
@@ -49,13 +51,32 @@ Plan: `plans/2026-07-27-v06-expand-and-retrain/`. Report:
 - [ ] v0.6 GGUF not exported — v0.5 GGUF remains the served artifact (better overall)
 
 **Lesson:** a bare weak-category expansion lifts the targets but trades away
-strong categories and raises the (harder, regenerated) test-set headline. v0.7
-must expand without under-representing strong categories, and run the judge.
+strong categories and raises the (harder, regenerated) test-set headline.
 
-### v0.7 — Recovery + advanced distillation
-- [ ] Beat v0.5's 5.23: re-expand catalogue without under-representing strong
-      categories (rebalance, not just append); retrain; re-evaluate
-- [ ] Run LLM-as-judge (the metric v0.5/v0.6 both skipped) once the judge API is up
+### v0.7 — Capacity retrain (LoRA r=32) (⚠️ 2026-07-28, exported, not canonical)
+Plan: `plans/2026-07-27-v07-capacity-retrain/`. Report:
+`plans/reports/evaluation-v0.7.md`.
+- [x] Retrain on the same 570 dataset / 54-sample split as v0.6 with LoRA rank
+      doubled (r=16 → r=32, alpha 64) — one changed variable
+- [x] Overall PPL @cap 2048 **5.81 < v0.6's 5.85** on the identical split (target met)
+- [x] Best val loss 1.4555 (v0.6: 1.4599) on the same val split
+- [x] Target weak categories at their best-ever: creative 14.11, vietnamese
+      7.01, reasoning 3.60, ml_ai 4.15, math 2.84
+- [x] GGUF Q4_K_M + Q5_K_M exported as `distill-gpt55-v0.7` + smoke-tested
+      (llama-server health ok, reply correct)
+- [ ] `science` (6.02) and `philosophy` (6.22) did NOT recover → capacity was
+      not the root cause; the v0.6 dataset imbalance is
+- [ ] LLM-as-judge still not run (judge API unreachable again)
+- [ ] Not promoted to canonical/served — still above v0.5's 5.23 (different
+      split, indicative only); v0.5 Q4_K_M stays served
+
+**Lesson:** doubling adapter capacity yields only marginal gains on a fixed,
+imbalanced dataset. The real lever is rebalancing the catalogue, not more rank.
+
+### v0.8 — Rebalance + recovery + advanced distillation
+- [ ] Beat v0.5's 5.23: rebalance the catalogue (top up science/philosophy and
+      the strong categories too, not just append weak ones); retrain; re-evaluate
+- [ ] Run LLM-as-judge (the metric v0.5/v0.6/v0.7 all skipped) once the judge API is up
 - [ ] Teacher ensemble: add `cx/gpt-5.6-terra` as comparative teacher
 - [ ] Fix or replace broken bnb 4-bit loading (torch stable?) → retrain QLoRA at
       seq 1024 (dataset stores full-length samples)
