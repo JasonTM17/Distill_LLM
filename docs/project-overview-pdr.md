@@ -1,5 +1,7 @@
 # Project Overview — PDR (Product Development Requirements)
 
+> **Ngôn ngữ:** Tiếng Việt (canonical) · [English](project-overview-pdr.en.md)
+
 ## Product
 
 Chưng cất mô hình (knowledge distillation) từ GPT-5.5-xhigh sang Qwen2.5-1.5B, giúp chạy local trên GPU RTX 3060 6GB với chất lượng tiệm cận teacher.

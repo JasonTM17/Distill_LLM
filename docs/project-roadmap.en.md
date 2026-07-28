@@ -1,14 +1,14 @@
 # Project Roadmap
 
-> **Ngôn ngữ:** Tiếng Việt (canonical) · [English](project-roadmap.en.md)
+> **Language:** English translation. Canonical Vietnamese: [`project-roadmap.md`](project-roadmap.md)
 
 ## Current: v0.7 closeout (2026-07-28)
 
-v0.5 là model shipped/canonical. v0.6 mở rộng category yếu → lùi overall. v0.7
-thử tăng capacité (LoRA r=32) trên cùng split → thắng v0.6 (5.81 < 5.85) nhưng
-không phục hồi science/philosophy → chứng tỏ root cause là dataset imbalance,
-không phải capacité. v0.5 vẫn canonical; v0.7 GGUF có sẵn local. Tiếp theo:
-v0.8 rebalance catalogue + chạy judge. Plans: `plans/2026-07-26-production-complete/`,
+v0.5 is the shipped/canonical model. v0.6 expanded weak categories → overall regressed. v0.7
+tried increasing capacity (LoRA r=32) on the same split → beat v0.6 (5.81 < 5.85) but
+did not recover science/philosophy → proving the root cause is dataset imbalance,
+not capacity. v0.5 remains canonical; v0.7 GGUF available locally. Next:
+v0.8 rebalance catalogue + run judge. Plans: `plans/2026-07-26-production-complete/`,
 `plans/2026-07-27-v06-expand-and-retrain/`, `plans/2026-07-27-v07-capacity-retrain/`.
 
 ## Roadmap
@@ -54,7 +54,6 @@ Plan: `plans/2026-07-27-v06-expand-and-retrain/`. Report:
 
 **Lesson:** a bare weak-category expansion lifts the targets but trades away
 strong categories and raises the (harder, regenerated) test-set headline.
-
 ### v0.7 — Capacity retrain (LoRA r=32) (⚠️ 2026-07-28, exported, not canonical)
 Plan: `plans/2026-07-27-v07-capacity-retrain/`. Report:
 `plans/reports/evaluation-v0.7.md`.
