@@ -14,7 +14,7 @@ There are **two planes that never import each other**:
 
 | Plane | Lives in | Runs on | Produces / consumes |
 |---|---|---|---|
-| Offline pipeline | `src/distill` | GPU workstation, Python 3.12+ | Produces a GGUF file |
+| Offline pipeline | `src/distill` | GPU workstation, Python 3.14 | Produces a GGUF file |
 | Online serving | `services/api`, `services/web` | Containers, CPU | Consumes that GGUF file |
 
 The only thing crossing the boundary is the quantized model file in

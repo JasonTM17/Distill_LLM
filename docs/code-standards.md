@@ -44,7 +44,8 @@
   crashes the current torch nightly on Windows (see phase-03 incident log).
 - **Model loads go CPU-first, then `.to("cuda:0")`** — safetensors
   direct-to-GPU is broken against the current torch nightly.
-- **LoRA on full bf16** (r16, q/k/v/o) with gradient checkpointing;
+- **LoRA on full bf16** (rank env-overridable via `LORA_R`; v0.5/v0.6 ran r=16,
+  v0.7 ran r=32 to test capacity), targets q/k/v/o, with gradient checkpointing;
   the QLoRA 4-bit path is kept behind `LOAD_IN_4BIT` but bnb on-the-fly
   quantization crashes in this environment.
 - **MAX_SEQ_LENGTH 512** — vocab-sized logits (152K) OOM 6GB at 1024.
@@ -53,7 +54,8 @@
 
 ## Dataset
 
-- 530 prompts / 10 categories; every sample validated at generation time.
+- 570 prompts / 10 categories (v0.5: 530; v0.6/v0.7: +40 for weak categories);
+  every sample validated at generation time.
 - **Exact Qwen2.5 chat template** with `<|im_start|>`/`<|im_end|>` special
   tokens (a plain-text approximation trains a format no inference stack uses).
 - Quality gate before splitting: mojibake, min-length, duplicate instructions.

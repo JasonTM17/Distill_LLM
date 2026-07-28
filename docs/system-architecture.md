@@ -9,7 +9,7 @@ serves it.
 ```
           OFFLINE (RTX 3060 6GB)                          ONLINE (docker compose)
 ┌─────────────────────────────────────────┐      ┌───────────────────────────────────┐
-│ prompts.json (530)                      │      │  ┌─────────┐   REST/SSE  ┌─────┐  │
+│ prompts.json (570)                      │      │  ┌─────────┐   REST/SSE  ┌─────┐  │
 │   ↓ distill.generate_dataset            │      │  │   web   │────────────▶│ api │  │
 │ teacher_outputs.json (9Router API)      │      │  │ (nginx) │  OpenAI-    │     │  │
 │   ↓ distill.dataset  (screen+split)     │      │  │ React   │  compatible │Fast │  │
@@ -29,9 +29,9 @@ serves it.
 |---|---|
 | `config.py` | All tunables; env-overridable; loads `.env` (secrets never hardcoded) |
 | `teacher_client.py` | OpenAI-compatible client: retryable/fatal error classification, exponential backoff + jitter, output validation (empty/short/U+FFFD rejected) |
-| `generate_dataset.py` | Resumable generation over 530 prompts; atomic JSON writes; failures retried across runs |
+| `generate_dataset.py` | Resumable generation over 570 prompts (v0.5: 530; v0.6/v0.7: +40 weak-category); atomic JSON writes; failures retried across runs |
 | `dataset.py` | Quality gate (mojibake, dedup, min-length) → exact Qwen2.5 chat template (`<|im_start|>` tokens) → stratified 80/10/10 splits, seed 42 |
-| `train.py` | LoRA r16 on q/k/v/o over the **bf16** base, batch 1×8 + validation loop, early stopping, best-checkpoint restore. Branches on `LOAD_IN_4BIT`: the NF4 4-bit path exists but is unusable in this environment, so v0.5 ran the bf16 path (`fp16=False`, `bf16=True`) |
+| `train.py` | LoRA on q/k/v/o over the **bf16** base, batch 1×8 + validation loop, early stopping, best-checkpoint restore. Rank env-overridable (`LORA_R`): v0.5/v0.6 ran r=16; v0.7 ran r=32 to test capacity. Branches on `LOAD_IN_4BIT`: the NF4 4-bit path exists but is unusable in this environment, so all shipped runs used the bf16 path (`fp16=False`, `bf16=True`) |
 | `merge.py` | LoRA merged onto the **bf16** base (not a 4-bit dequant — GGUF conversion rejects bitsandbytes-quantized checkpoints) |
 | `evaluate.py` + `eval_metrics.py` | Held-out PPL, ROUGE-L/token-F1 vs teacher, optional LLM-as-judge (9Router), markdown report |
 | `export_gguf.py` | merged → f16 GGUF → Q4_K_M / Q5_K_M via llama.cpp; smoke test; deletes intermediate |
@@ -45,9 +45,10 @@ hardcodes `dtype=torch.bfloat16` with no override. The shipped artifact agrees:
 **QLoRA is still the intended design, but it did not run.** 6GB VRAM makes 4-bit
 QLoRA the natural fit, and `train.py` still branches on `LOAD_IN_4BIT` to build a
 bitsandbytes NF4 config. That path is broken in this environment (see the known
-limitations table in [project-roadmap.md](./project-roadmap.md)), so v0.5 trained
-LoRA on the full bf16 model with `LOAD_IN_4BIT=false`. Restoring the 4-bit path is
-tracked on the roadmap; the branch is live code, not a leftover.
+limitations table in [project-roadmap.md](./project-roadmap.md)), so every run
+(v0.5/v0.6/v0.7) trained LoRA on the full bf16 model with `LOAD_IN_4BIT=false`.
+Restoring the 4-bit path is tracked on the roadmap; the branch is live code, not
+a leftover.
 
 Other constraints: batch 1 + grad-accum 8, and gradient checkpointing is required
 for the bf16 path to fit in 6GB.
