@@ -16,7 +16,7 @@ jobs:
           cache: pip
       - name: Install test deps
         run: |
-          pip install pytest ruff openai fastapi httpx uvicorn prometheus-client pydantic
+          pip install pytest ruff openai fastapi httpx uvicorn prometheus-client pydantic torch
       - name: Lint (ruff)
         run: ruff check src/ tests/ services/api/
       - name: Core package tests
